@@ -10,12 +10,11 @@ import (
 )
 
 func main() {
-
+	gin.Init()
+	
 	motd.Start()
 
 	config.Start()
-
-	gin.Init()
 
 	gorm.Start()
 
