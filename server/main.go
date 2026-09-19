@@ -1,6 +1,7 @@
 package main
 
 import (
+	"hxzl/api"
 	"hxzl/gin"
 	"hxzl/gininit"
 	"hxzl/home"
@@ -16,6 +17,8 @@ func main() {
 	gininit.Run()
 
 	home.Run()
+
+	api.Run()
 
 	gin.Run()
 }

@@ -69,52 +69,59 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
+
+// -------- 类型 --------
+interface Goods {
+  id: number
+  name: string
+  icon: string
+  desc: string
+  price: number
+  count: number
+}
+interface Category {
+  id: number
+  name: string
+  goods: Goods[]
+}
 
 // -------- 数据 --------
-const categories = ref([
-  {
-    id: 1, name: '热销推荐',
-    goods: [
-      { id: 101, name: '招牌炒饭', icon: '🍚', desc: '大火爆炒 粒粒分明', price: 18, count: 0 },
-      { id: 102, name: '红烧牛肉面', icon: '🍜', desc: '浓郁汤底 大块牛肉', price: 22, count: 0 },
-      { id: 103, name: '香煎鸡排', icon: '🍗', desc: '外酥里嫩 鲜嫩多汁', price: 25, count: 0 },
-      { id: 104, name: '番茄蛋汤', icon: '🍲', desc: '酸甜开胃 营养丰富', price: 10, count: 0 },
-    ],
-  },
-  {
-    id: 2, name: '经典套餐',
-    goods: [
-      { id: 201, name: '商务A套餐', icon: '🍱', desc: '两荤一素 含汤', price: 35, count: 0 },
-      { id: 202, name: '商务B套餐', icon: '🍱', desc: '三荤一素 含汤', price: 38, count: 0 },
-      { id: 203, name: '学生套餐', icon: '🍱', desc: '一荤两素 含饭', price: 25, count: 0 },
-      { id: 204, name: '家庭套餐', icon: '🍱', desc: '四荤两素 3-4人', price: 88, count: 0 },
-    ],
-  },
-  {
-    id: 3, name: '凉菜小食',
-    goods: [
-      { id: 301, name: '凉拌黄瓜', icon: '🥒', desc: '清脆爽口', price: 8, count: 0 },
-      { id: 302, name: '皮蛋豆腐', icon: '🥚', desc: '经典凉菜', price: 12, count: 0 },
-      { id: 303, name: '口水鸡', icon: '🐔', desc: '麻辣鲜香', price: 18, count: 0 },
-      { id: 304, name: '酸辣土豆丝', icon: '🥔', desc: '酸辣开胃', price: 10, count: 0 },
-    ],
-  },
-  {
-    id: 4, name: '饮品甜点',
-    goods: [
-      { id: 401, name: '柠檬水', icon: '🍋', desc: '冰镇解渴', price: 6, count: 0 },
-      { id: 402, name: '奶茶', icon: '🧋', desc: '香浓丝滑', price: 12, count: 0 },
-      { id: 403, name: '双皮奶', icon: '🍮', desc: '顺德风味', price: 15, count: 0 },
-      { id: 404, name: '红豆冰沙', icon: '🍧', desc: '冰爽甜蜜', price: 14, count: 0 },
-    ],
-  },
-])
+const categories = ref<Category[]>([])
 
 // -------- 状态 --------
-const currentCatId = ref(categories.value[0].id)
+const currentCatId = ref(0)
 const scrollTarget = ref('')
 const _scrollLock = ref(false)
+
+// -------- 生命周期 --------
+onMounted(() => {
+  fetchMenu()
+})
+
+// -------- 请求后端 --------
+function fetchMenu() {
+  uni.request({
+    url: 'http://localhost:9081/api/menu',
+    method: 'GET',
+    success: (res: any) => {
+      if (res.data && res.data.code === 200) {
+        const cats = res.data.categories.map((cat: any) => ({
+          id: cat.id,
+          name: cat.name,
+          goods: cat.goods.map((g: any) => ({ ...g, count: 0 })),
+        }))
+        categories.value = cats
+        if (cats.length > 0) {
+          currentCatId.value = cats[0].id
+        }
+      }
+    },
+    fail: () => {
+      uni.showToast({ title: '网络错误', icon: 'none' })
+    },
+  })
+}
 
 // -------- 计算 --------
 const cartTotal = computed(() =>
