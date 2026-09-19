@@ -2,7 +2,7 @@ package motd
 
 import "fmt"
 
-func Run() {
+func Start() {
 	fmt.Print("========================================\n")
 	fmt.Print("             lfdd 管理系统启动！          \n")
 	fmt.Print("========================================\n")

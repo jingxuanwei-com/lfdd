@@ -22,7 +22,7 @@ type Config struct {
 	UpdatedAt time.Time
 }
 
-func Run() {
+func Start() {
 
 	// 确保 data 目录存在
 	if err := os.MkdirAll("data", 0755); err != nil {

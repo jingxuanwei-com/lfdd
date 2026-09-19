@@ -7,7 +7,7 @@ import (
 	g "github.com/gin-gonic/gin"
 )
 
-func Run() {
+func Start() {
 	web.Router.GET("/", home)
 
 	log.Print("✅ [Home] 主页模块 加载完成！")

@@ -4,7 +4,6 @@ import (
 	"hxzl/api"
 	"hxzl/config"
 	"hxzl/gin"
-	"hxzl/gininit"
 	"hxzl/gorm"
 	"hxzl/home"
 	"hxzl/motd"
@@ -12,17 +11,17 @@ import (
 
 func main() {
 
-	motd.Run()
+	motd.Start()
 
-	config.Run()
+	config.Start()
 
-	gininit.Run()
+	gin.Init()
 
-	gorm.Run()
+	gorm.Start()
 
-	home.Run()
+	home.Start()
 
-	api.Run()
+	api.Start()
 
-	gin.Run()
+	gin.Start()
 }

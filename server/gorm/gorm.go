@@ -13,7 +13,18 @@ import (
 
 var DB *gorm.DB
 
-func Run() {
+func Start() {
+	// 未初始化时跳过数据库连接，等前端提交初始化后再连接
+	if config.Get("server_install").Value != "true" {
+		log.Println("⚠️ [GORM] 服务器未初始化，跳过数据库连接，等待初始化...")
+		return
+	}
+
+	Connect()
+}
+
+// Connect 根据配置连接数据库，可在安装完成后调用
+func Connect() {
 	dbType := config.Get("db_type").Value
 	if dbType == "" {
 		log.Fatal("❌ [GROM] 未找到 db_type 配置")
@@ -50,7 +61,6 @@ func Run() {
 		return
 	}
 
-	// 初始化 GORM 实例
 	var err error
 	DB, err = gorm.Open(dialector, &gorm.Config{
 		SkipDefaultTransaction: true,
@@ -58,6 +68,7 @@ func Run() {
 
 	if err != nil {
 		log.Printf("❌ [GORM] 初始化数据库 %s 失败: %v", dbType, err)
+		return
 	}
 
 	log.Printf("✅ [GORM] 已成功初始化数据库 %s", dbType)
