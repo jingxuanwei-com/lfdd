@@ -138,9 +138,7 @@ function switchCat(id: number) {
 function onScroll(e: any) {
   if (_scrollLock.value) return
   const sys = uni.getSystemInfoSync()
-  const query = uni.createSelectorQuery().in(this)
   // 简易方案：根据 scrollTop 区间判断
-  // uni-app 中用 createSelectorQuery 需要组件上下文，这里用节流简单判断
   const top = e.detail.scrollTop
   const sectionHeight = (sys.windowHeight || 600) * 0.6 // 粗略
   const idx = Math.floor(top / sectionHeight)
