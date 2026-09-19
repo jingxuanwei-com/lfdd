@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from 'vue'
+import { get } from '@/utils/request'
 
 // -------- 类型 --------
 interface Goods {
@@ -84,6 +85,15 @@ interface Category {
   id: number
   name: string
   goods: Goods[]
+}
+interface MenuRes {
+  code: number
+  message: string
+  categories: Array<{
+    id: number
+    name: string
+    goods: Array<{ id: number; name: string; icon: string; desc: string; price: number }>
+  }>
 }
 
 // -------- 数据 --------
@@ -100,27 +110,23 @@ onMounted(() => {
 })
 
 // -------- 请求后端 --------
-function fetchMenu() {
-  uni.request({
-    url: 'http://localhost:9081/api/menu',
-    method: 'GET',
-    success: (res: any) => {
-      if (res.data && res.data.code === 200) {
-        const cats = res.data.categories.map((cat: any) => ({
-          id: cat.id,
-          name: cat.name,
-          goods: cat.goods.map((g: any) => ({ ...g, count: 0 })),
-        }))
-        categories.value = cats
-        if (cats.length > 0) {
-          currentCatId.value = cats[0].id
-        }
+async function fetchMenu() {
+  try {
+    const res = await get<MenuRes>('/api/menu')
+    if (res.code === 200) {
+      const cats = res.categories.map((cat) => ({
+        id: cat.id,
+        name: cat.name,
+        goods: cat.goods.map((g) => ({ ...g, count: 0 })),
+      }))
+      categories.value = cats
+      if (cats.length > 0) {
+        currentCatId.value = cats[0].id
       }
-    },
-    fail: () => {
-      uni.showToast({ title: '网络错误', icon: 'none' })
-    },
-  })
+    }
+  } catch {
+    // request.ts 已处理提示
+  }
 }
 
 // -------- 计算 --------
