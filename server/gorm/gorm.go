@@ -27,7 +27,7 @@ func Start() {
 		log.Println("⚠️ [GORM] 服务器未初始化，跳过数据库连接，等待初始化...")
 		return
 	}
-	Connect()
+	connect()
 }
 
 func Stop() {
@@ -49,7 +49,7 @@ func Stop() {
 
 func Restart() {
 	Stop()
-	Connect()
+	connect()
 }
 
 func Reload() {
@@ -81,7 +81,7 @@ func Reload() {
 		log.Println("🔄 [GORM] 配置已变化，重新连接...")
 	}
 	Stop()
-	Connect()
+	connect()
 }
 
 func Status() DBStatus {
@@ -104,7 +104,7 @@ func Status() DBStatus {
 	}
 }
 
-func Connect() {
+func connect() {
 	dbType := config.Get("db_type").Value
 	if dbType == "" {
 		log.Fatal("❌ [GROM] 未找到 db_type 配置")

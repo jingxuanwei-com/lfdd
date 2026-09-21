@@ -12,6 +12,13 @@ import (
 
 var Router = g.New()
 var server *http.Server
+var lastConfig string
+
+type ServerStatus struct {
+	IP     string `json:"ip"`
+	Port   string `json:"port"`
+	Status string `json:"status"`
+}
 
 // Init 初始化中间件（在模块注册路由前调用）
 func Init() {
@@ -39,6 +46,7 @@ func start(addr string) {
 	}
 
 	log.Printf("🌐 [Gin] 访问 http://%s", addr)
+	lastConfig = addr
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("❌ [Gin] 致命错误：%v", err)
@@ -67,12 +75,60 @@ func Restart() {
 	// 在新地址启动（开一个 goroutine 避免阻塞）
 	go start(addr)
 	log.Printf("✅ [Gin] 服务已切换到 %s", addr)
+	lastConfig = addr
 }
 
-// GetAddr 获取当前监听地址（ip:port）
-func GetAddr() string {
-	if server != nil {
-		return server.Addr
+// Reload 智能重连（配置无变化且服务运行中则跳过，否则重启）
+func Reload() {
+	ip := config.Get("server_ip").Value
+	port := config.Get("server_port").Value
+	if port == "" {
+		port = "9081"
 	}
-	return ""
+	addr := ip + ":" + port
+
+	running := server != nil
+
+	// 配置没变且运行中 → 跳过
+	if running && addr == lastConfig {
+		log.Println("🔄 [Gin] 配置无变化且服务运行中，跳过重载")
+		return
+	}
+
+	// 重载
+	if !running {
+		log.Println("🔄 [Gin] 服务未运行，启动服务...")
+	} else {
+		log.Println("🔄 [Gin] 配置已变化，重启服务...")
+	}
+	Restart()
+}
+
+// Status 获取当前服务状态
+func Status() ServerStatus {
+	ip := ""
+	port := ""
+	status := "stopped"
+
+	if server != nil {
+		status = "running"
+		// 从配置读取，确保准确
+		ip = config.Get("server_ip").Value
+		port = config.Get("server_port").Value
+		if addr := server.Addr; addr != "" {
+			// 从 Addr 中解析端口
+			for i := len(addr) - 1; i >= 0; i-- {
+				if addr[i] == ':' {
+					port = addr[i+1:]
+					break
+				}
+			}
+		}
+	}
+
+	return ServerStatus{
+		IP:     ip,
+		Port:   port,
+		Status: status,
+	}
 }

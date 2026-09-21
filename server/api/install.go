@@ -69,8 +69,8 @@ func InstallSubmit(c *gin.Context) {
 	// 最后设置 server_install = true，表示初始化完成
 	config.Set("server_install", "true", user)
 
-	// 初始化完成后连接业务数据库
-	gorm.Connect()
+	// 初始化完成后重载数据库连接
+	gorm.Reload()
 
 	// 初始化完成后热切换到新地址
 	web.Restart()

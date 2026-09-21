@@ -12,7 +12,7 @@ gorm.Restart() 强制重连（关闭旧连接 → 重新读取配置 → 连接�
 gorm.Reload() 智能重连（配置无变化且已连接则跳过，否则重连）
 gorm.Status() 获取数据库状态
 
-# DBStatus 结构体
+# Status 返回结构体
 
 Type - 数据库类型（sqlite/mysql/postgresql）
 Host - 主机地址
