@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -41,6 +42,27 @@ func Start() {
 	if err != nil {
 		panic("failed to migrate database")
 	}
+
+	// 从环境变量中读取配置
+	envPrefix := "LFDD_"
+	configFields := []string{
+		"server_ip", "server_port", "server_https", "server_https_auto",
+		"server_cert", "server_key", "server_install",
+		"db_type", "db_path", "db_host", "db_port",
+		"db_name", "db_user", "db_password",
+	}
+
+	for _, field := range configFields {
+		envKey := envPrefix + strings.ToUpper(field)
+		if val, ok := os.LookupEnv(envKey); ok && len(val) > 0 {
+			if err := Set(field, val, "env"); err != nil {
+				log.Printf("⚠️ [Config] 环境变量覆盖配置 %s 失败: %v", field, err)
+			} else {
+				log.Printf("✅ [Config] 环境变量覆盖配置 %s = %s", field, val)
+			}
+		}
+	}
+
 }
 
 // TableName 设置表名
