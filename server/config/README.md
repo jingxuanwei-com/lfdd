@@ -11,6 +11,13 @@ UpdatedAt - 数据更新时间
 
 server_ip - 服务ip地址
 server_port - 服务器端口
+server_https - 是否开启https服务
+server_https_auto - 是否自动签名证书
+server_cert - https证书路径
+server_key - https私钥路径
+
+
+
 server_install - 是否初始化
 
 db_type - 数据库类型
