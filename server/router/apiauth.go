@@ -7,21 +7,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ApiAuth struct {
+type ApiAuthHandler struct {
 }
 
 // apiauth 认证接口
-func apiauth() {
-	ApiAuth := ApiAuth{}
+func apiAuthRouter() {
+	apiAuthHandler := ApiAuthHandler{}
 	group := web.Engine.Group("/api/auth")
-	group.POST("/login", ApiAuth.Login)
-	group.POST("/logout", ApiAuth.Logout)
-	group.POST("/refresh", ApiAuth.Refresh)
-	group.POST("/register", ApiAuth.Register)
+	group.POST("/login", apiAuthHandler.Login)
+	group.POST("/logout", apiAuthHandler.Logout)
+	group.POST("/refresh", apiAuthHandler.Refresh)
+	group.POST("/register", apiAuthHandler.Register)
 }
 
 // Login 登录
-func (ApiAuth) Login(c *gin.Context) {
+func (ApiAuthHandler) Login(c *gin.Context) {
 	// 获取请求参数
 	var req struct {
 		Username string `json:"username"`
@@ -48,7 +48,7 @@ func (ApiAuth) Login(c *gin.Context) {
 }
 
 // Register 注册
-func (ApiAuth) Register(c *gin.Context) {
+func (ApiAuthHandler) Register(c *gin.Context) {
 
 	var req service.Auth
 
@@ -75,7 +75,7 @@ func (ApiAuth) Register(c *gin.Context) {
 }
 
 // Logout 退出
-func (ApiAuth) Logout(c *gin.Context) {
+func (ApiAuthHandler) Logout(c *gin.Context) {
 
 	c.JSON(200, gin.H{
 		"message": "退出成功",
@@ -83,7 +83,7 @@ func (ApiAuth) Logout(c *gin.Context) {
 }
 
 // Refresh 刷新 token
-func (ApiAuth) Refresh(c *gin.Context) {
+func (ApiAuthHandler) Refresh(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message": "刷新成功",
 	})
