@@ -6,38 +6,47 @@ import (
 	"errors"
 	"hxzl/core/db"
 	"hxzl/model"
+	"math/rand/v2"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Register 注册新用户：查重 → 密码哈希 → 写库
-func Register(username, email, password string) (*model.User, error) {
-	if db.DB == nil {
-		return nil, errors.New("数据库未连接")
-	}
+type Auth struct {
+	Username string
+	Email    string
+	Password string
+}
 
-	// 查重（username / email 均有唯一索引）
+// Register 注册新用户：查重 → 密码哈希 → 写库
+func (a *Auth) Register() (*model.User, error) {
 	var count int64
 	db.DB.Model(&model.User{}).
-		Where("username = ? OR email = ?", username, email).
+		Where("username = ? OR email = ?", a.Username, a.Email).
 		Count(&count)
 	if count > 0 {
 		return nil, errors.New("用户名或邮箱已存在")
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(a.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
 	user := &model.User{
-		ID:       model.NewID(),
-		Username: username,
-		Email:    email,
+		ID:       NewID(),
+		Username: a.Username,
+		Email:    a.Email,
 		Password: string(hash),
 	}
 	if err := db.DB.Create(user).Error; err != nil {
 		return nil, err
 	}
 	return user, nil
+}
+
+// NewID 生成 18 位数字 ID：毫秒时间戳(13位) + 随机数(5位)，不依赖数据库自增。
+// 多实例部署时如出现冲突，再升级为雪花算法。
+func NewID() int64 {
+	return time.Now().UnixMilli()*100_000 + int64(rand.IntN(100_000))
 }

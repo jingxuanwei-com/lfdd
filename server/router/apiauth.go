@@ -50,11 +50,7 @@ func (ApiAuth) Login(c *gin.Context) {
 // Register 注册
 func (ApiAuth) Register(c *gin.Context) {
 
-	var req struct {
-		Username string `json:"username"`
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
+	var req service.Auth
 
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -64,7 +60,7 @@ func (ApiAuth) Register(c *gin.Context) {
 		return
 	}
 
-	user, err := service.Register(req.Username, req.Email, req.Password)
+	user, err := req.Register()
 	if err != nil {
 		c.JSON(400, gin.H{
 			"message": err.Error(),
