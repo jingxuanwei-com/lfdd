@@ -11,18 +11,18 @@ import (
 	"gorm.io/gorm"
 )
 
-// ------------------------ NewToken 生成一个新的 Token ------------------------
-type NewTokenInput struct {
+// ------------------------ CreateSession 创建会话（生成 Token） ------------------------
+type CreateSessionInput struct {
 	UserID int64  `json:"user_id,string"`
 	IP     string `json:"ip"`
 	Device string `json:"device"`
 }
-type NewTokenOutput struct {
+type CreateSessionOutput struct {
 	Token string `json:"token"`
 }
 
-// NewToken 生成一个新的 Token 并持久化保存到数据库
-func NewToken(i NewTokenInput) (o NewTokenOutput, err error) {
+// CreateSession 生成一个新的 Token 并持久化保存到数据库
+func CreateSession(i CreateSessionInput) (o CreateSessionOutput, err error) {
 	// 1. 生成 32 字节（256位）的随机二进制数据
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
@@ -50,15 +50,15 @@ func NewToken(i NewTokenInput) (o NewTokenOutput, err error) {
 	return o, nil
 }
 
-// ------------------------ RefreshToken 刷新 Token ------------------------
-type RefreshTokenInput struct {
+// ------------------------ RefreshSession 刷新会话（换发新 Token） ------------------------
+type RefreshSessionInput struct {
 	Token string `json:"token"`
 }
-type RefreshTokenOutput struct {
+type RefreshSessionOutput struct {
 	Token string `json:"token"`
 }
 
-func RefreshToken(i RefreshTokenInput) (o RefreshTokenOutput, err error) {
+func RefreshSession(i RefreshSessionInput) (o RefreshSessionOutput, err error) {
 	// 1. 查旧会话，须存在且未过期
 	var s model.Session
 	if err = db.DB.Where("token = ?", i.Token).First(&s).Error; err != nil {
@@ -90,15 +90,15 @@ func RefreshToken(i RefreshTokenInput) (o RefreshTokenOutput, err error) {
 	return o, nil
 }
 
-// ------------------------ RevokeToken 吊销 Token ------------------------
-type RevokeTokenInput struct {
+// ------------------------ DeleteSession 删除会话（登出/吊销） ------------------------
+type DeleteSessionInput struct {
 	Token string `json:"token"`
 }
-type RevokeTokenOutput struct {
+type DeleteSessionOutput struct {
 	// 保持结构体配对规范，留空以备未来扩展
 }
 
-func RevokeToken(i RevokeTokenInput) (o RevokeTokenOutput, err error) {
+func DeleteSession(i DeleteSessionInput) (o DeleteSessionOutput, err error) {
 	// 对应登出/踢出：从数据库中软删除或物理删除该 Session
 	if err = db.DB.Where("token = ?", i.Token).Delete(&model.Session{}).Error; err != nil {
 		return o, err
@@ -106,12 +106,12 @@ func RevokeToken(i RevokeTokenInput) (o RevokeTokenOutput, err error) {
 	return o, nil
 }
 
-// ------------------------ GetSessionByToken 查询会话 ------------------------
+// ------------------------ GetSession 按 Token 查询会话 ------------------------
 
-type GetSessionByTokenInput struct {
+type GetSessionInput struct {
 	Token string `json:"token"`
 }
-type GetSessionByTokenOutput struct {
+type GetSessionOutput struct {
 	Session struct {
 		Token  string `json:"token"`
 		UserID int64  `json:"user_id,string"`
@@ -120,7 +120,7 @@ type GetSessionByTokenOutput struct {
 	} `json:"session"`
 }
 
-func GetSessionByToken(i GetSessionByTokenInput) (o GetSessionByTokenOutput, err error) {
+func GetSession(i GetSessionInput) (o GetSessionOutput, err error) {
 	// 只返回未过期的会话（过期即失效）
 	if err = db.DB.Where("token = ? AND expires_at > ?", i.Token, time.Now()).First(&o.Session).Error; err != nil {
 		return o, err
@@ -128,11 +128,11 @@ func GetSessionByToken(i GetSessionByTokenInput) (o GetSessionByTokenOutput, err
 	return o, nil
 }
 
-// ------------------------ GetSessionByUserID 查询用户的会话列表 ------------------------
-type GetSessionByUserIDInput struct {
+// ------------------------ ListSessions 查询用户的会话列表 ------------------------
+type ListSessionsInput struct {
 	UserID int64 `json:"user_id,string"`
 }
-type GetSessionByUserIDOutput struct {
+type ListSessionsOutput struct {
 	Sessions []struct {
 		Token  string `json:"token"`
 		UserID int64  `json:"user_id,string"`
@@ -141,7 +141,7 @@ type GetSessionByUserIDOutput struct {
 	} `json:"sessions"`
 }
 
-func GetSessionByUserID(i GetSessionByUserIDInput) (o GetSessionByUserIDOutput, err error) {
+func ListSessions(i ListSessionsInput) (o ListSessionsOutput, err error) {
 	// 只返回未过期的会话
 	if err = db.DB.Where("user_id = ? AND expires_at > ?", i.UserID, time.Now()).Find(&o.Sessions).Error; err != nil {
 		return o, err

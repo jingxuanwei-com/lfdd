@@ -50,7 +50,7 @@ func Register(i RegisterInput) (o RegisterOutput, err error) {
 	}
 
 	// 生成token
-	token, err := NewToken(NewTokenInput{UserID: user.ID})
+	token, err := CreateSession(CreateSessionInput{UserID: user.ID})
 	if err != nil {
 		return o, err
 	}
@@ -81,7 +81,7 @@ type RefreshOutput struct {
 
 // Refresh 刷新token（校验旧 token 并换发新 token）
 func Refresh(in RefreshInput) (o RefreshOutput, err error) {
-	t, err := RefreshToken(RefreshTokenInput{Token: in.Token})
+	t, err := RefreshSession(RefreshSessionInput{Token: in.Token})
 	if err != nil {
 		return o, err
 	}
