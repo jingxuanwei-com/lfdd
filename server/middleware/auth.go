@@ -12,29 +12,23 @@ import (
 
 // ============ 登录拦截系列中间件（AuthGuard / GuestGuard / OptionalGuard） ============
 
-// tokenFromHeader 解析 Authorization: Bearer <token>（只认 Authorization 头，避免读 body 破坏后续参数绑定）
-func tokenFromHeader(c *gin.Context) string {
-	auth := c.GetHeader("Authorization")
-	if !strings.HasPrefix(auth, "Bearer ") {
-		return ""
-	}
-	return strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+// TokenFromHeaderInput 输入
+type TokenFromHeaderInput struct {
+	Authorization string `json:"authorization"` // 请求原始 Authorization 头
 }
 
-// lookupSession 校验 token 对应的会话，返回所属用户 ID。
-// ok=false 表示未登录（token 为空、会话不存在或已过期）；err 为数据库等系统异常。
-func lookupSession(token string) (userID int64, ok bool, err error) {
-	if token == "" {
-		return 0, false, nil
+// TokenFromHeaderOutput 输出
+type TokenFromHeaderOutput struct {
+	Token string `json:"token"` // 解析出的 token；空串表示未携带 Bearer 凭证
+}
+
+// TokenFromHeader 解析 Authorization: Bearer <token>（只认 Authorization 头，避免读 body 破坏后续参数绑定）
+func TokenFromHeader(i TokenFromHeaderInput) (o TokenFromHeaderOutput) {
+	if !strings.HasPrefix(i.Authorization, "Bearer ") {
+		return o
 	}
-	s, err := service.GetSession(service.GetSessionInput{Token: token})
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, false, nil
-		}
-		return 0, false, err
-	}
-	return s.Session.UserID, true, nil
+	o.Token = strings.TrimSpace(strings.TrimPrefix(i.Authorization, "Bearer "))
+	return o
 }
 
 // AuthGuard 登录拦截中间件：**登录放行，未登录阻止**。
@@ -44,24 +38,25 @@ func lookupSession(token string) (userID int64, ok bool, err error) {
 // 用于必须登录才能访问的接口。
 func AuthGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := tokenFromHeader(c)
+		token := TokenFromHeader(TokenFromHeaderInput{Authorization: c.GetHeader("Authorization")}).Token
 		if token == "" {
 			c.AbortWithStatusJSON(401, gin.H{"message": "未登录"})
 			return
 		}
 
-		userID, ok, err := lookupSession(token)
+		// 校验会话（GetSession 内部已过滤过期时间）
+		s, err := service.GetSession(service.GetSessionInput{Token: token})
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.AbortWithStatusJSON(401, gin.H{"message": "登录已过期或会话无效"})
+				return
+			}
 			c.AbortWithStatusJSON(500, gin.H{"message": "服务器内部错误"})
-			return
-		}
-		if !ok {
-			c.AbortWithStatusJSON(401, gin.H{"message": "登录已过期或会话无效"})
 			return
 		}
 
 		// 登录放行：把 userID、token 写入上下文供 handler 使用
-		c.Set("userID", userID)
+		c.Set("userID", s.Session.UserID)
 		c.Set("token", token)
 		c.Next()
 	}
@@ -73,14 +68,20 @@ func AuthGuard() gin.HandlerFunc {
 // - 会话有效（已登录）→ 403 中断请求。
 func GuestGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		_, ok, err := lookupSession(tokenFromHeader(c))
-		if err != nil {
-			c.AbortWithStatusJSON(500, gin.H{"message": "服务器内部错误"})
+		token := TokenFromHeader(TokenFromHeaderInput{Authorization: c.GetHeader("Authorization")}).Token
+		if token == "" {
+			// 未登录 → 放行
+			c.Next()
 			return
 		}
-		if !ok {
-			// 未登录（含 token 失效）→ 放行
-			c.Next()
+
+		if _, err := service.GetSession(service.GetSessionInput{Token: token}); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 会话失效 → 视为未登录，放行
+				c.Next()
+				return
+			}
+			c.AbortWithStatusJSON(500, gin.H{"message": "服务器内部错误"})
 			return
 		}
 
@@ -97,17 +98,23 @@ func GuestGuard() gin.HandlerFunc {
 // 会话查询异常也不拦截：可选登录不应因查询失败挡住公开请求。
 func OptionalGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := tokenFromHeader(c)
-		userID, ok, err := lookupSession(token)
-		if err != nil {
+		token := TokenFromHeader(TokenFromHeaderInput{Authorization: c.GetHeader("Authorization")}).Token
+		if token == "" {
+			// 未登录 → 放行
 			c.Next()
 			return
 		}
-		if ok {
-			// 已登录：带入身份
-			c.Set("userID", userID)
-			c.Set("token", token)
+
+		s, err := service.GetSession(service.GetSessionInput{Token: token})
+		if err != nil {
+			// 会话失效（或查询异常）→ 视为未登录，放行
+			c.Next()
+			return
 		}
+
+		// 已登录：带入身份
+		c.Set("userID", s.Session.UserID)
+		c.Set("token", token)
 		c.Next()
 	}
 }
