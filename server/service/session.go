@@ -148,3 +148,17 @@ func GetSessionByUserID(i GetSessionByUserIDInput) (o GetSessionByUserIDOutput, 
 	}
 	return o, nil
 }
+
+// ------------------------ CleanExpiredSessions 扫描清理过期会话 ------------------------
+type CleanExpiredSessionsInput struct {
+}
+type CleanExpiredSessionsOutput struct {
+}
+
+func CleanExpiredSessions(i CleanExpiredSessionsInput) (err error) {
+	// 1. 查找所有过期的会话
+	if err = db.DB.Where("expires_at < ?", time.Now()).Delete(&model.Session{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
