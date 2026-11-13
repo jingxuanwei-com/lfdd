@@ -68,7 +68,7 @@ func (h *ApiAuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"token": token,
+		"token": token.Token,
 	})
 }
 

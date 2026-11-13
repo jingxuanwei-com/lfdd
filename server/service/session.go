@@ -108,23 +108,28 @@ func DeleteSession(i DeleteSessionInput) (o DeleteSessionOutput, err error) {
 
 // ------------------------ GetSession 按 Token 查询会话 ------------------------
 
+// SessionView 会话视图（查询结果输出；须查 model.Session 再映射，匿名结构体 GORM 推不出表名）
+type SessionView struct {
+	Token  string `json:"token"`
+	UserID int64  `json:"user_id,string"`
+	IP     string `json:"ip"`
+	Device string `json:"device"`
+}
+
 type GetSessionInput struct {
 	Token string `json:"token"`
 }
 type GetSessionOutput struct {
-	Session struct {
-		Token  string `json:"token"`
-		UserID int64  `json:"user_id,string"`
-		IP     string `json:"ip"`
-		Device string `json:"device"`
-	} `json:"session"`
+	Session SessionView `json:"session"`
 }
 
 func GetSession(i GetSessionInput) (o GetSessionOutput, err error) {
 	// 只返回未过期的会话（过期即失效）
-	if err = db.DB.Where("token = ? AND expires_at > ?", i.Token, time.Now()).First(&o.Session).Error; err != nil {
+	var s model.Session
+	if err = db.DB.Where("token = ? AND expires_at > ?", i.Token, time.Now()).First(&s).Error; err != nil {
 		return o, err
 	}
+	o.Session = SessionView{Token: s.Token, UserID: s.UserID, IP: s.IP, Device: s.Device}
 	return o, nil
 }
 
@@ -133,18 +138,18 @@ type ListSessionsInput struct {
 	UserID int64 `json:"user_id,string"`
 }
 type ListSessionsOutput struct {
-	Sessions []struct {
-		Token  string `json:"token"`
-		UserID int64  `json:"user_id,string"`
-		IP     string `json:"ip"`
-		Device string `json:"device"`
-	} `json:"sessions"`
+	Sessions []SessionView `json:"sessions"`
 }
 
 func ListSessions(i ListSessionsInput) (o ListSessionsOutput, err error) {
 	// 只返回未过期的会话
-	if err = db.DB.Where("user_id = ? AND expires_at > ?", i.UserID, time.Now()).Find(&o.Sessions).Error; err != nil {
+	var sessions []model.Session
+	if err = db.DB.Where("user_id = ? AND expires_at > ?", i.UserID, time.Now()).Find(&sessions).Error; err != nil {
 		return o, err
+	}
+	o.Sessions = make([]SessionView, 0, len(sessions))
+	for _, s := range sessions {
+		o.Sessions = append(o.Sessions, SessionView{Token: s.Token, UserID: s.UserID, IP: s.IP, Device: s.Device})
 	}
 	return o, nil
 }
