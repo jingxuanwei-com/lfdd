@@ -37,10 +37,25 @@ type RegisterOutput struct {
 // Register 注册
 func Register(i RegisterInput) (o RegisterOutput, err error) {
 	// 检测是否存在相同邮箱的用户
-	if err := db.DB.Where("email = ?", i.Email).First(&model.User{}).Error; err == nil {
+	if err = db.DB.Where("email = ?", i.Email).First(&model.User{}).Error; err == nil {
 		return o, errors.New("邮箱已存在")
 	}
+	// 注册用户
+	user := &model.User{
+		Email:    i.Email,
+		Password: i.Password,
+	}
+	if err = db.DB.Create(user).Error; err != nil {
+		return o, err
+	}
 
+	// 生成token
+	token, err := NewToken(NewTokenInput{UserID: user.ID})
+	if err != nil {
+		return o, err
+	}
+
+	o.Token = token.Token
 	return o, nil
 }
 
@@ -48,7 +63,6 @@ func Register(i RegisterInput) (o RegisterOutput, err error) {
 type LogoutInput struct {
 	Token string `json:"token"`
 }
-
 type LogoutOutput struct {
 }
 
@@ -61,7 +75,6 @@ func Logout(in LogoutInput) (o LogoutOutput, err error) {
 type RefreshInput struct {
 	Token string `json:"token"`
 }
-
 type RefreshOutput struct {
 	Token string `json:"token"`
 }
