@@ -25,6 +25,9 @@ type Goods struct {
 	// 商品图片地址，可空
 	Image string `json:"image" gorm:"size:255"`
 
+	// 同级排序，数值越小越靠前；前端拖拽后由业务层整组重写
+	Sort int `json:"sort" gorm:"not null;default:0"`
+
 	// 上架状态：1 上架、0 下架（默认 1）
 	Status int8 `json:"status" gorm:"not null;default:1"`
 

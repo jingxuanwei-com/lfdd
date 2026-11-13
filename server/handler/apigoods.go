@@ -51,3 +51,93 @@ func (h *ApiGoodsHandler) Page(c *gin.Context) {
 
 	c.JSON(200, out)
 }
+
+// Create 新建商品（挂到指定菜单下）
+// body: {"menu_id":"101","name":"杨枝甘露","price":1850,"spec":"","stock":-1,"image":"","status":1,"sort":0}
+// price 单位：分（1850 = 18.50 元）
+func (h *ApiGoodsHandler) Create(c *gin.Context) {
+	var req service.CreateGoodsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.CreateGoods(req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
+
+// Update 修改商品（价格、顺序、库存、上下架、所属菜单等全量更新，前端回传完整对象）
+func (h *ApiGoodsHandler) Update(c *gin.Context) {
+	var req service.UpdateGoodsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	if _, err := service.UpdateGoods(req); err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "ok",
+	})
+}
+
+// Delete 删除商品
+func (h *ApiGoodsHandler) Delete(c *gin.Context) {
+	var req service.DeleteGoodsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	if _, err := service.DeleteGoods(req); err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "ok",
+	})
+}
+
+// Sort 商品顺序整组重写（前端拖拽后调用）
+// body: {"ids":["1","2","3"]} 按数组下标写 sort（0,1,2...）
+func (h *ApiGoodsHandler) Sort(c *gin.Context) {
+	var req service.SortGoodsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	if _, err := service.SortGoods(req); err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, gin.H{
+		"message": "ok",
+	})
+}

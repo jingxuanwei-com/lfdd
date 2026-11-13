@@ -1,8 +1,13 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"server/core/db"
 	"server/model"
+	"strconv"
+
+	"gorm.io/gorm"
 )
 
 // ------------------------ GetGoodsSidebar 商品侧边菜单 ------------------------
@@ -87,7 +92,7 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 		listQ = listQ.Where("menu_id = ?", i.MenuID)
 	}
 	var goods []model.Goods
-	if err = listQ.Order("id DESC").Limit(i.PageSize).Offset((i.Page - 1) * i.PageSize).
+	if err = listQ.Order("sort ASC, id DESC").Limit(i.PageSize).Offset((i.Page - 1) * i.PageSize).
 		Find(&goods).Error; err != nil {
 		return o, err
 	}
@@ -102,4 +107,157 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 	o.Page = i.Page
 	o.PageSize = i.PageSize
 	return o, nil
+}
+
+// ------------------------ CreateGoods 新建商品 ------------------------
+type CreateGoodsInput struct {
+	MenuID int64  `json:"menu_id,string"`
+	Name   string `json:"name"`
+	Price  int    `json:"price"` // 单位：分
+	Spec   string `json:"spec"`
+	Stock  int    `json:"stock"` // -1 表示不限库存
+	Image  string `json:"image"`
+	Status int8   `json:"status"` // 1 上架、0 下架
+	Sort   int    `json:"sort"`
+}
+type CreateGoodsOutput struct {
+	ID int64 `json:"id,string"`
+}
+
+// CreateGoods 新建商品（必须挂在一个已存在的菜单下）
+func CreateGoods(i CreateGoodsInput) (o CreateGoodsOutput, err error) {
+	if i.Name == "" {
+		return o, errors.New("商品名称不能为空")
+	}
+	if i.Price < 0 {
+		return o, errors.New("商品价格不能为负数")
+	}
+	if i.Status != 0 && i.Status != 1 {
+		return o, errors.New("上架状态只能是 0 或 1")
+	}
+	if err = checkMenuExists(i.MenuID); err != nil {
+		return o, err
+	}
+
+	g := model.Goods{
+		MenuID: i.MenuID, Name: i.Name, Price: i.Price, Spec: i.Spec,
+		Stock: i.Stock, Image: i.Image, Status: i.Status, Sort: i.Sort,
+	}
+	if err = db.DB.Create(&g).Error; err != nil {
+		return o, err
+	}
+
+	o.ID = g.ID
+	return o, nil
+}
+
+// ------------------------ UpdateGoods 修改商品 ------------------------
+type UpdateGoodsInput struct {
+	ID     int64  `json:"id,string"`
+	MenuID int64  `json:"menu_id,string"` // 可改所属菜单（移动分类）
+	Name   string `json:"name"`
+	Price  int    `json:"price"` // 单位：分
+	Spec   string `json:"spec"`
+	Stock  int    `json:"stock"`
+	Image  string `json:"image"`
+	Status int8   `json:"status"` // 1 上架、0 下架
+	Sort   int    `json:"sort"`
+}
+type UpdateGoodsOutput struct {
+	// 保持结构体配对规范，留空以备未来扩展
+}
+
+// UpdateGoods 修改商品（价格、顺序、库存、上下架等全量更新，由前端回传完整对象）
+func UpdateGoods(i UpdateGoodsInput) (o UpdateGoodsOutput, err error) {
+	if i.Name == "" {
+		return o, errors.New("商品名称不能为空")
+	}
+	if i.Price < 0 {
+		return o, errors.New("商品价格不能为负数")
+	}
+	if i.Status != 0 && i.Status != 1 {
+		return o, errors.New("上架状态只能是 0 或 1")
+	}
+	if err = checkMenuExists(i.MenuID); err != nil {
+		return o, err
+	}
+
+	res := db.DB.Model(&model.Goods{}).Where("id = ?", i.ID).Updates(map[string]interface{}{
+		"menu_id": i.MenuID,
+		"name":    i.Name,
+		"price":   i.Price,
+		"spec":    i.Spec,
+		"stock":   i.Stock,
+		"image":   i.Image,
+		"status":  i.Status,
+		"sort":    i.Sort,
+	})
+	if res.Error != nil {
+		return o, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return o, errors.New("商品不存在")
+	}
+	return o, nil
+}
+
+// ------------------------ DeleteGoods 删除商品 ------------------------
+type DeleteGoodsInput struct {
+	ID int64 `json:"id,string"`
+}
+type DeleteGoodsOutput struct {
+	// 保持结构体配对规范，留空以备未来扩展
+}
+
+// DeleteGoods 删除商品
+func DeleteGoods(i DeleteGoodsInput) (o DeleteGoodsOutput, err error) {
+	res := db.DB.Where("id = ?", i.ID).Delete(&model.Goods{})
+	if res.Error != nil {
+		return o, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return o, errors.New("商品不存在")
+	}
+	return o, nil
+}
+
+// ------------------------ SortGoods 商品顺序整组重写 ------------------------
+type SortGoodsInput struct {
+	IDs []string `json:"ids"` // 拖拽后的最终顺序（商品 id 字符串数组，与列表返回的 id 格式一致）
+}
+type SortGoodsOutput struct {
+	// 保持结构体配对规范，留空以备未来扩展
+}
+
+// SortGoods 商品顺序整组重写：按数组下标写 sort（0,1,2...），事务保证整组一致
+func SortGoods(i SortGoodsInput) (o SortGoodsOutput, err error) {
+	if len(i.IDs) == 0 {
+		return o, errors.New("ids 不能为空")
+	}
+
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		for idx, s := range i.IDs {
+			id, e := strconv.ParseInt(s, 10, 64)
+			if e != nil {
+				return fmt.Errorf("无效的商品 id: %s", s)
+			}
+			if e = tx.Model(&model.Goods{}).Where("id = ?", id).Update("sort", idx).Error; e != nil {
+				return e
+			}
+		}
+		return nil
+	})
+	return o, err
+}
+
+// checkMenuExists 校验菜单存在（商品必须挂在有效菜单下）
+func checkMenuExists(menuID int64) error {
+	var count int64
+	if err := db.DB.Model(&model.Menu{}).Where("id = ?", menuID).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return errors.New("所属菜单不存在")
+	}
+	return nil
 }
