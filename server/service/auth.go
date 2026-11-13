@@ -79,7 +79,12 @@ type RefreshOutput struct {
 	Token string `json:"token"`
 }
 
-// Refresh 刷新token
+// Refresh 刷新token（校验旧 token 并换发新 token）
 func Refresh(in RefreshInput) (o RefreshOutput, err error) {
+	t, err := RefreshToken(RefreshTokenInput{Token: in.Token})
+	if err != nil {
+		return o, err
+	}
+	o.Token = t.Token
 	return o, nil
 }

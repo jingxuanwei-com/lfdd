@@ -3,9 +3,12 @@ package service
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"server/core/db"
 	"server/model"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // ------------------------ NewToken 生成一个新的 Token ------------------------
@@ -56,7 +59,34 @@ type RefreshTokenOutput struct {
 }
 
 func RefreshToken(i RefreshTokenInput) (o RefreshTokenOutput, err error) {
-	// TODO: 实现滑动过期或生成新 Token 替换旧 Token 的逻辑
+	// 1. 查旧会话，须存在且未过期
+	var s model.Session
+	if err = db.DB.Where("token = ?", i.Token).First(&s).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return o, errors.New("token 无效或已过期")
+		}
+		return o, err
+	}
+	if time.Now().After(s.ExpiresAt) {
+		return o, errors.New("token 无效或已过期")
+	}
+
+	// 2. 生成新 Token（32 字节随机数 → 16 进制）
+	bytes := make([]byte, 32)
+	if _, err = rand.Read(bytes); err != nil {
+		return o, err
+	}
+	newToken := hex.EncodeToString(bytes)
+
+	// 3. 替换旧 Token 并滑动续期 7 天（Token 是主键，直接 UPDATE 主键完成换发）
+	if err = db.DB.Model(&model.Session{}).Where("token = ?", i.Token).Updates(map[string]interface{}{
+		"token":      newToken,
+		"expires_at": time.Now().Add(7 * 24 * time.Hour),
+	}).Error; err != nil {
+		return o, err
+	}
+
+	o.Token = newToken
 	return o, nil
 }
 
@@ -83,15 +113,16 @@ type GetSessionByTokenInput struct {
 }
 type GetSessionByTokenOutput struct {
 	Session struct {
-		Token string `json:"token"`
-		UserID int64 `json:"user_id,string"`
-		IP string `json:"ip"`
+		Token  string `json:"token"`
+		UserID int64  `json:"user_id,string"`
+		IP     string `json:"ip"`
 		Device string `json:"device"`
 	} `json:"session"`
 }
 
 func GetSessionByToken(i GetSessionByTokenInput) (o GetSessionByTokenOutput, err error) {
-	if err = db.DB.Where("token = ?", i.Token).First(&o.Session).Error; err != nil {
+	// 只返回未过期的会话（过期即失效）
+	if err = db.DB.Where("token = ? AND expires_at > ?", i.Token, time.Now()).First(&o.Session).Error; err != nil {
 		return o, err
 	}
 	return o, nil
@@ -103,15 +134,16 @@ type GetSessionByUserIDInput struct {
 }
 type GetSessionByUserIDOutput struct {
 	Sessions []struct {
-		Token string `json:"token"`
-		UserID int64 `json:"user_id,string"`
-		IP string `json:"ip"`
+		Token  string `json:"token"`
+		UserID int64  `json:"user_id,string"`
+		IP     string `json:"ip"`
 		Device string `json:"device"`
 	} `json:"sessions"`
 }
 
 func GetSessionByUserID(i GetSessionByUserIDInput) (o GetSessionByUserIDOutput, err error) {
-	if err = db.DB.Where("user_id = ?", i.UserID).Find(&o.Sessions).Error; err != nil {
+	// 只返回未过期的会话
+	if err = db.DB.Where("user_id = ? AND expires_at > ?", i.UserID, time.Now()).Find(&o.Sessions).Error; err != nil {
 		return o, err
 	}
 	return o, nil
