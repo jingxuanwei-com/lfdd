@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"hxzl/service"
+	"server/service"
 
 	"github.com/gin-gonic/gin"
 )

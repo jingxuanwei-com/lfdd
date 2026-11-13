@@ -1,5 +1,11 @@
 package service
 
+import (
+	"errors"
+	"server/core/db"
+	"server/model"
+)
+
 // ================= 登录 =================
 type LoginInput struct {
 	Account  string `json:"account"`
@@ -30,6 +36,11 @@ type RegisterOutput struct {
 
 // Register 注册
 func Register(i RegisterInput) (o RegisterOutput, err error) {
+	// 检测是否存在相同邮箱的用户
+	if err := db.DB.Where("email = ?", i.Email).First(&model.User{}).Error; err == nil {
+		return o, errors.New("邮箱已存在")
+	}
+
 	return o, nil
 }
 

@@ -2,8 +2,8 @@
 package web
 
 import (
-	"hxzl/middleware"
 	"log"
+	"server/middleware"
 
 	"github.com/1szt/go-pkg/env"
 	"github.com/gin-gonic/gin"

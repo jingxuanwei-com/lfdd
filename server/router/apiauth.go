@@ -1,9 +1,9 @@
 package router
 
 import (
-	"hxzl/core/web"
-	"hxzl/handler"
-	"hxzl/middleware"
+	"server/core/web"
+	"server/handler"
+	"server/middleware"
 )
 
 type ApiAuthHandler struct {

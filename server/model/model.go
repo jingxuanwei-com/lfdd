@@ -2,8 +2,8 @@
 package model
 
 import (
-	"hxzl/core/db"
 	"log"
+	"server/core/db"
 )
 
 // Start 执行所有表的自动迁移（须在 db.Start 之后调用）
