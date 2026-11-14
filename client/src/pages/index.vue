@@ -33,10 +33,10 @@
     <q-footer elevated>
       <q-tabs v-model="tab" dense class="bg-white text-grey-7" active-color="primary" indicator-color="primary"
         align="justify" narrow-indicator>
-        <q-route-tab to="/" name="home" icon="home" label="首页" />
-        <q-route-tab to="/menu" name="menu" icon="restaurant_menu" label="点餐" />
+        <q-route-tab to="/menu" name="menu" icon="shopping_bag" label="商品" />
+        <q-route-tab to="/cart" name="cart" icon="shopping_cart" label="购物车" />
         <q-route-tab to="/order" name="order" icon="receipt_long" label="订单" />
-        <q-route-tab to="/me" name="me" icon="person" label="我的" />
+        <q-route-tab to="/admin" name="admin" icon="admin_panel_settings" label="后台" />
       </q-tabs>
     </q-footer>
   </q-layout>
@@ -96,7 +96,7 @@ const linksList: EssentialLinkProps[] = [
 const leftDrawerOpen = ref(false);
 
 // 底部导航当前选中项
-const tab = ref("home");
+const tab = ref("menu");
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;

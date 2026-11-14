@@ -37,10 +37,10 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       Record<never, never>,
       | '//(index)'
-      | '//me'
+      | '//admin'
+      | '//cart'
       | '//menu'
       | '//order'
-      | '//second'
     >,
     '//(index)': RouteRecordInfo<
       '//(index)',
@@ -49,9 +49,16 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '//me': RouteRecordInfo<
-      '//me',
-      '/me',
+    '//admin': RouteRecordInfo<
+      '//admin',
+      '/admin',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '//cart': RouteRecordInfo<
+      '//cart',
+      '/cart',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -66,13 +73,6 @@ declare module 'vue-router/auto-routes' {
     '//order': RouteRecordInfo<
       '//order',
       '/order',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '//second': RouteRecordInfo<
-      '//second',
-      '/second',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -101,10 +101,10 @@ declare module 'vue-router/auto-routes' {
       routes:
         | '/'
         | '//(index)'
-        | '//me'
+        | '//admin'
+        | '//cart'
         | '//menu'
         | '//order'
-        | '//second'
       views:
         | 'default'
       pathParamNames:
@@ -118,9 +118,17 @@ declare module 'vue-router/auto-routes' {
       pathParamNames:
         | never
     }
-    'src/pages/index/me.vue': {
+    'src/pages/index/admin.vue': {
       routes:
-        | '//me'
+        | '//admin'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/index/cart.vue': {
+      routes:
+        | '//cart'
       views:
         | never
       pathParamNames:
@@ -137,14 +145,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index/order.vue': {
       routes:
         | '//order'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/index/second.vue': {
-      routes:
-        | '//second'
       views:
         | never
       pathParamNames:
