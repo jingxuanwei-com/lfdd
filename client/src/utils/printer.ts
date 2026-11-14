@@ -3,21 +3,11 @@
 // - 桌面 / 网页（Electron、Chrome）：Web Bluetooth（仅 BLE）
 
 // ==================== ESC/POS 指令 ====================
-import { GBK_TABLE } from "./gbkTable";
+import str2gbk from "str2gbk";
 
 export const ESC_INIT = [0x1b, 0x40]; // ESC @ 初始化打印机
 export const ESC_ALIGN_CENTER = [0x1b, 0x61, 0x01]; // ESC a 1 居中对齐
 export const ESC_FEED = [0x1b, 0x64, 0x04]; // ESC d 4 走纸 4 行
-
-// 测试文案「你好 蓝牙小票机」的 GBK 字节（TextEncoder 只支持 UTF-8，固定文案直接内联）
-const TEST_TEXT_GBK = [
-  0xc4, 0xe3, 0xba, 0xc3, 0x20, 0xc0, 0xb6, 0xd1, 0xc0, 0xd0, 0xa1, 0xc6, 0xb1, 0xbb, 0xfa
-];
-
-// 组装测试小票数据：初始化 + 居中 + 文案 + 换行 + 走纸
-export function buildTestPayload(): number[] {
-  return [...ESC_INIT, ...ESC_ALIGN_CENTER, ...TEST_TEXT_GBK, 0x0a, 0x0a, ...ESC_FEED];
-}
 
 // ==================== 运行环境 ====================
 export function isNative(): boolean {
@@ -26,37 +16,21 @@ export function isNative(): boolean {
 
 // ==================== 文本编码 ====================
 // 国产热敏机按 GBK 解释字节流，发 UTF-8 中文会乱码
-// GBK_TABLE 索引 = (lead-0x81)*191 + (trail-0x40)，值为对应 unicode 字符
-let gbkEncodeMap: Map<string, number> | null = null;
-
+// str2gbk：纯浏览器 GBK 编码（<1KB，基于 TextDecoder 反查实现）
 export function encodeGbk(text: string): Uint8Array {
-  if (!gbkEncodeMap) {
-    gbkEncodeMap = new Map();
-    for (let lead = 0x81; lead <= 0xfe; lead++) {
-      for (let trail = 0x40; trail <= 0xfe; trail++) {
-        const idx = (lead - 0x81) * 191 + (trail - 0x40);
-        const ch = GBK_TABLE[idx] ?? "\u0000";
-        if (ch !== "\u0000" && !gbkEncodeMap.has(ch)) {
-          gbkEncodeMap.set(ch, (lead << 8) | trail);
-        }
-      }
-    }
-  }
-  const out: number[] = [];
-  for (const ch of text) {
-    const code = ch.codePointAt(0)!;
-    if (code < 0x80) {
-      out.push(code); // ASCII 原样
-      continue;
-    }
-    const gbk = gbkEncodeMap.get(ch);
-    if (gbk !== undefined) {
-      out.push(gbk >> 8, gbk & 0xff);
-    } else {
-      out.push(0x3f); // 表外字符输出 '?'
-    }
-  }
-  return new Uint8Array(out);
+  return str2gbk(text, { onAlloc: (len) => new Uint8Array(len) });
+}
+
+// 组装测试小票数据：初始化 + 居中 + 文案 + 换行 + 走纸
+export function buildTestPayload(): number[] {
+  return [
+    ...ESC_INIT,
+    ...ESC_ALIGN_CENTER,
+    ...encodeGbk("你好 蓝牙小票机"),
+    0x0a,
+    0x0a,
+    ...ESC_FEED
+  ];
 }
 
 // ==================== 原生：经典蓝牙 SPP ====================
@@ -282,7 +256,12 @@ const PRINTER_SERVICES = [
   "49535343-fe7d-4ae5-8fa9-9fafd205e455"
 ];
 
-export async function webBluetoothPrint(payload: number[]): Promise<string> {
+// Web Bluetooth 没有被动扫描 API，只能弹系统设备选择框（用户勾选即"搜索"）
+// 已选择的设备缓存在此，供后续点击打印
+const webDevices = new Map<string, any>();
+
+// 弹出 Web Bluetooth 设备选择框，返回选中设备（同时缓存以便打印）
+export async function webBluetoothPick(): Promise<{ deviceId: string; name: string }> {
   const bluetooth = (navigator as Navigator & { bluetooth?: any }).bluetooth;
   if (!bluetooth) {
     throw new Error("当前环境不支持 Web Bluetooth（需 Chrome/Edge/Chromium 内核）");
@@ -295,6 +274,19 @@ export async function webBluetoothPrint(payload: number[]): Promise<string> {
     acceptAllDevices: true,
     optionalServices: PRINTER_SERVICES
   });
+  webDevices.set(device.id, device);
+  return { deviceId: device.id, name: device.name || "" };
+}
+
+// 向已选择的 Web Bluetooth 设备打印
+export async function webBluetoothPrintTo(deviceId: string, payload: number[]): Promise<string> {
+  const device = webDevices.get(deviceId);
+  if (!device) {
+    // 没缓存（如刷新过页面）则重新弹选择框
+    const picked = await webBluetoothPick();
+    if (picked.deviceId !== deviceId) throw new Error("设备不一致，请重新选择");
+    return webBluetoothPrintTo(deviceId, payload);
+  }
   const server = await device.gatt.connect();
   try {
     const ch = await findWritableChar(server);
@@ -314,6 +306,11 @@ export async function webBluetoothPrint(payload: number[]): Promise<string> {
   } finally {
     server.disconnect();
   }
+}
+
+export async function webBluetoothPrint(payload: number[]): Promise<string> {
+  const picked = await webBluetoothPick();
+  return webBluetoothPrintTo(picked.deviceId, payload);
 }
 
 // 遍历所有服务，返回第一个具备写能力的特征

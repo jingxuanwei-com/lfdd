@@ -17,6 +17,9 @@ importers:
       quasar:
         specifier: ^2.35.3
         version: 2.35.3
+      str2gbk:
+        specifier: ^0.0.5
+        version: 0.0.5
       vue:
         specifier: ^3.5.22
         version: 3.5.45(typescript@6.0.3)
@@ -1860,6 +1863,9 @@ packages:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
 
+  str2gbk@0.0.5:
+    resolution: {integrity: sha512-YOtJmOo1nBSoYEHwcCdAb+nyzkhQrx8tMkCuAdmvRrK2dwwUvEm62SSnA7I4DONdPB/WiiF14VXl4y5lJO94MQ==}
+
   supports-color@8.1.1:
     resolution: {integrity: sha512-MpUEN2OodtUzxvKQl72cUF7RQ5EiHsGvSsVG0ia9c5RbWGL2CI4C7EpPS8UTBIplnlzZiNuV56w+FuNxy3ty2Q==}
     engines: {node: '>=10'}
@@ -3699,6 +3705,8 @@ snapshots:
   stack-trace@1.0.0: {}
 
   statuses@2.0.2: {}
+
+  str2gbk@0.0.5: {}
 
   supports-color@8.1.1:
     dependencies:

@@ -264,7 +264,13 @@
                 </q-item-label>
                 <q-item v-if="sppDevices.length === 0">
                   <q-item-section class="text-grey-6">
-                    {{ scanning ? "搜索中，等待设备进入配对模式…" : "未搜索到设备" }}
+                    {{
+                      !isNative()
+                        ? "传统蓝牙仅 App 内可用"
+                        : scanning
+                          ? "搜索中，等待设备进入配对模式…"
+                          : "未搜索到设备"
+                    }}
                   </q-item-section>
                 </q-item>
                 <q-item
@@ -382,6 +388,8 @@ import {
   isNative,
   sppDiscover,
   sppPrint,
+  webBluetoothPick,
+  webBluetoothPrintTo,
   type BleScanDevice,
   type SppDevice
 } from "@/utils/printer";
@@ -756,10 +764,13 @@ function buildTestPayload() {
   return Array.from(payload);
 }
 
-// 点击 BLE 设备 → 打印测试小票
+// 点击 BLE 设备 → 打印测试小票（原生走 Capacitor 插件，网页走 Web Bluetooth）
 async function printBle(d: BleScanDevice) {
   try {
-    const name = await blePrintTo(d.deviceId, buildTestPayload(), d.name);
+    const payload = buildTestPayload();
+    const name = isNative()
+      ? await blePrintTo(d.deviceId, payload, d.name)
+      : await webBluetoothPrintTo(d.deviceId, payload);
     statusOk.value = true;
     status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
   } catch (e) {
@@ -780,7 +791,9 @@ async function printSpp(d: SppDevice) {
   }
 }
 
-// 开始搜索：BLE 实时回调 + 传统蓝牙 discoverUnpaired（仅未配对设备，不返回已保存的）
+// 开始搜索：
+// - 原生：BLE 实时扫描 + 传统蓝牙 discoverUnpaired（仅未配对设备，不返回已保存的）
+// - 网页：Web Bluetooth 没有被动扫描 API，弹系统设备选择框（勾选即"搜索"）
 async function startScan() {
   status.value = "";
   bleDevices.value = [];
@@ -799,29 +812,39 @@ async function startScan() {
           bleDevices.value.push(d);
         }
       });
-    } else {
-      statusOk.value = true;
-      status.value = "当前为网页环境，仅展示传统蓝牙搜索；蓝牙搜索请在 App 内使用";
-    }
 
-    // 传统蓝牙扫描（约 12 秒，结束后 resolve）
-    // 单独 catch：权限被拒等错误只影响传统蓝牙一列，不打断 BLE 搜索
-    try {
-      const found = await sppDiscover((d) => {
-        if (!sppDevices.value.some((x) => x.address === d.address)) {
-          sppDevices.value.push(d);
+      // 传统蓝牙扫描（约 12 秒，结束后 resolve）
+      // 单独 catch：权限被拒等错误只影响传统蓝牙一列，不打断 BLE 搜索
+      try {
+        const found = await sppDiscover((d) => {
+          if (!sppDevices.value.some((x) => x.address === d.address)) {
+            sppDevices.value.push(d);
+          }
+        });
+        if (found.length === 0 && bleDevices.value.length === 0 && status.value === "") {
+          statusOk.value = false;
+          status.value = "未搜索到设备，请确认打印机已开机并进入配对/广播模式";
         }
-      });
-      if (found.length === 0 && bleDevices.value.length === 0 && status.value === "") {
+      } catch (e) {
+        const msg = describeError(e);
         statusOk.value = false;
-        status.value = "未搜索到设备，请确认打印机已开机并进入配对/广播模式";
+        status.value = msg.includes("Location permission")
+          ? "搜索传统蓝牙需要位置权限：请在系统设置 → 应用 → 权限中允许「位置」后重试（低功耗蓝牙不受影响）"
+          : `传统蓝牙搜索失败：${msg}`;
       }
-    } catch (e) {
-      const msg = describeError(e);
-      statusOk.value = false;
-      status.value = msg.includes("Location permission")
-        ? "搜索传统蓝牙需要位置权限：请在系统设置 → 应用 → 权限中允许「位置」后重试（低功耗蓝牙不受影响）"
-        : `传统蓝牙搜索失败：${msg}`;
+    } else {
+      // 网页环境：Web Bluetooth 设备选择框（列出附近可见的 BLE 设备）
+      try {
+        const d = await webBluetoothPick();
+        if (d.deviceId && !bleDevices.value.some((x) => x.deviceId === d.deviceId)) {
+          bleDevices.value.push(d);
+        }
+        statusOk.value = true;
+        status.value = `已选择「${d.name || "未命名设备"}」，点击设备即可发送测试小票`;
+      } catch (e) {
+        statusOk.value = false;
+        status.value = describeError(e);
+      }
     }
   } catch (e) {
     statusOk.value = false;
