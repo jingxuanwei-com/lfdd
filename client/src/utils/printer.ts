@@ -53,7 +53,8 @@ function displayWidth(s: string): number {
   let w = 0;
   for (const ch of s) {
     const code = ch.codePointAt(0) ?? 0;
-    if (code > 0x1100 && code <= 0xff60) w += 2;
+    // 中日韩表意文字/全角形式 + 全角符号（￥ 等 U+FFE0~EE）
+    if ((code > 0x1100 && code <= 0xff60) || (code >= 0xffe0 && code <= 0xffee)) w += 2;
     else w += 1;
   }
   return w;
@@ -80,10 +81,11 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
   ];
   for (const it of o.items) {
     const label = it.spec ? `${it.name}(${it.spec})` : it.name;
-    lines.push(padEndW(`${label} x${it.qty}`, 24) + padStartW(`¥${((it.price * it.qty) / 100).toFixed(2)}`, 8));
+    // 用全角 ￥（GBK A3A4）：半角 ¥ 不在 GBK，打印会变问号
+    lines.push(padEndW(`${label} x${it.qty}`, 24) + padStartW(`￥${((it.price * it.qty) / 100).toFixed(2)}`, 8));
   }
   lines.push("--------------------------------");
-  lines.push(padEndW("合计", 24) + padStartW(`¥${(o.total / 100).toFixed(2)}`, 8));
+  lines.push(padEndW("合计", 24) + padStartW(`￥${(o.total / 100).toFixed(2)}`, 8));
   lines.push(padEndW(`共 ${o.count} 件`, 24));
 
   const parts: Uint8Array[] = [
