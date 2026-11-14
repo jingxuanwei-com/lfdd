@@ -86,7 +86,15 @@ export default defineConfig(ctx => {
     devServer: {
       // vueDevtools: true,
       // https: true,
-      open: true // opens browser window automatically
+      open: true, // opens browser window automatically
+      // 服务端无 CORS 中间件，开发时将 /api 代理到后端（自签证书需 secure: false）
+      proxy: {
+        "/api": {
+          target: "https://localhost:9081",
+          changeOrigin: true,
+          secure: false
+        }
+      }
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
