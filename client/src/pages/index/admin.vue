@@ -14,6 +14,14 @@
         :loading="printing"
         @click="testPrinter"
       />
+      <q-btn
+        class="q-mt-sm"
+        color="secondary"
+        icon="bluetooth"
+        label="Web蓝牙测试（强制走 Web Bluetooth）"
+        :loading="printingWeb"
+        @click="testWebBluetooth"
+      />
       <q-banner
         v-if="status"
         dense
@@ -82,6 +90,7 @@ import {
 } from "@/utils/printer";
 
 const printing = ref(false);
+const printingWeb = ref(false);
 const status = ref("");
 const statusOk = ref(true);
 
@@ -108,6 +117,22 @@ async function testPrinter() {
     return;
   }
   await runPrint(() => webBluetoothPrint(buildTestPayload()), "");
+}
+
+// testWebBluetooth：不分环境，强制走 Web Bluetooth（App 内用于验证 WebView 是否提供该 API）
+async function testWebBluetooth() {
+  status.value = "";
+  printingWeb.value = true;
+  try {
+    const name = await webBluetoothPrint(buildTestPayload());
+    statusOk.value = true;
+    status.value = `已连接 Web蓝牙「${name}」，测试小票已发送，请查看打印机出纸`;
+  } catch (e) {
+    statusOk.value = false;
+    status.value = describeError(e);
+  } finally {
+    printingWeb.value = false;
+  }
 }
 
 // runPrint：统一执行打印并回填状态

@@ -12,5 +12,6 @@ call pnpm quasar dev -m capacitor -T android
 :: call pnpm quasar dev -m ssr
 :: call pnpm quasar dev -m electron
 :: call pnpm quasar dev -m capacitor -T [android|ios]
+:: call pnpm quasar build -m capacitor -T android
 
 pause
