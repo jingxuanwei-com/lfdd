@@ -92,6 +92,7 @@
               label="分类"
               style="min-width: 160px"
             />
+            <div class="text-grey-7 text-caption q-ml-sm">拖动商品行调整顺序</div>
             <q-space />
             <q-btn
               color="primary"
@@ -113,7 +114,16 @@
           </div>
 
           <q-list v-else separator>
-            <q-item v-for="g in goodsList" :key="g.id">
+            <q-item
+              v-for="(g, gIdx) in goodsList"
+              :key="g.id"
+              class="menu-row"
+              draggable="true"
+              @dragstart="onGoodsDragStart(gIdx)"
+              @dragover.prevent
+              @drop="onGoodsDrop(gIdx)"
+              @dragend="dragGoodsIdx = null"
+            >
               <q-item-section avatar>
                 <div class="goods-thumb">
                   <img v-if="g.image" :src="g.image" :alt="g.name" />
@@ -608,6 +618,36 @@ async function loadGoods() {
     goodsList.value = Array.isArray(data.list) ? data.list : [];
   } finally {
     goodsLoading.value = false;
+  }
+}
+
+// ================= 商品拖拽排序 =================
+// 后端 sort 是全局序列（列表按 sort ASC 排序），拖拽只提交当前可见列表的 id 顺序，
+// 后端按下标 0..n 重写；分类筛选时只影响本分类，「全部分类」时整体重排
+const dragGoodsIdx = ref<number | null>(null);
+
+function onGoodsDragStart(idx: number) {
+  dragGoodsIdx.value = idx;
+}
+
+async function onGoodsDrop(idx: number) {
+  const from = dragGoodsIdx.value;
+  dragGoodsIdx.value = null;
+  if (from === null || from === idx) return;
+  const ids = goodsList.value.map((g) => g.id);
+  const moved = ids.splice(from, 1)[0]!;
+  ids.splice(idx, 0, moved);
+  // 乐观更新：先本地换序，保存成功后刷新
+  const list = [...goodsList.value];
+  const g = list.splice(from, 1)[0]!;
+  list.splice(idx, 0, g);
+  goodsList.value = list;
+  try {
+    await api("/api/goods/sort", { method: "POST", body: { ids } });
+    await loadGoods();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+    await loadGoods();
   }
 }
 
