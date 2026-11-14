@@ -72,13 +72,15 @@
           ¥{{ fmtPrice(cartTotal) }}
         </div>
       </div>
-      <q-btn color="primary" label="去结算" unelevated @click="checkout" />
+      <q-btn color="primary" label="去结算" unelevated :loading="ordering" @click="checkout" />
     </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import { useQuasar } from "quasar";
+import { useRouter } from "vue-router";
 import {
   cart,
   cartCount,
@@ -90,6 +92,8 @@ import {
 } from "../../utils/cart";
 
 const $q = useQuasar();
+const router = useRouter();
+const ordering = ref(false);
 
 // QPage styleFn：header/footer 占位后剩余高度，让页面撑满、列表区各自滚动
 function pageStyle(offset: number, height: number) {
@@ -99,9 +103,33 @@ function pageStyle(offset: number, height: number) {
   return { height: offset !== 0 ? `calc(100vh - ${offset}px)` : "100vh" };
 }
 
-function checkout() {
-  // TODO: 接订单后端（下单 → 后台查看/打印订单）
-  $q.notify({ message: "结算下单功能待开发", color: "primary" });
+// 结算：购物车明细提交后端建订单（价格由后端按库结算），成功后清空并跳订单页
+async function checkout() {
+  if (ordering.value) return;
+  if (cart.value.length === 0) {
+    $q.notify({ message: "购物车是空的", color: "orange" });
+    return;
+  }
+  ordering.value = true;
+  try {
+    const res = await fetch("/api/order/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.value.map((l) => ({ id: l.id, qty: l.qty }))
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `下单失败（${res.status}）`);
+
+    clearCart();
+    $q.notify({ message: `下单成功 ${data.order_no}`, color: "positive" });
+    void router.push("/order");
+  } catch (e) {
+    $q.notify({ message: e instanceof Error ? e.message : String(e), color: "negative" });
+  } finally {
+    ordering.value = false;
+  }
 }
 </script>
 

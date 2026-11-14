@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 // 购物车共享状态（模块级：商品页加购 → 购物车页查看，跨路由保留）
 export interface CartLine {
@@ -11,7 +11,37 @@ export interface CartLine {
   qty: number;
 }
 
-export const cart = ref<CartLine[]>([]);
+// 本地持久化：关闭应用/刷新后购物车依旧保留（localStorage）
+const CART_KEY = "lfdd_cart";
+
+function loadCart(): CartLine[] {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    const v: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(v)) return [];
+    // 丢弃结构损坏的行（localStorage 属外部输入）
+    return (v as CartLine[]).filter(
+      (l) => l && typeof l.id === "string" && typeof l.qty === "number" && l.qty > 0
+    );
+  } catch {
+    return [];
+  }
+}
+
+export const cart = ref<CartLine[]>(loadCart());
+
+// 任何变动即时写入本地（增删、改数量、清空都走 ref 变更）
+watch(
+  cart,
+  (v) => {
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(v));
+    } catch {
+      // 存储被禁用/超限时忽略，不影响功能
+    }
+  },
+  { deep: true }
+);
 
 export const cartCount = computed(() => cart.value.reduce((s, l) => s + l.qty, 0));
 export const cartTotal = computed(() => cart.value.reduce((s, l) => s + l.price * l.qty, 0));

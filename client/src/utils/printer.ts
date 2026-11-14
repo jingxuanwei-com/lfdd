@@ -33,6 +33,80 @@ export function buildTestPayload(): number[] {
   ];
 }
 
+// ==================== 订单小票 ====================
+export interface ReceiptItem {
+  name: string;
+  spec: string;
+  qty: number;
+  price: number; // 单价，分
+}
+export interface ReceiptOrder {
+  orderNo: string;
+  createdAt: string; // 2026-11-14 12:00:00
+  count: number; // 商品总件数
+  total: number; // 合计，分
+  items: ReceiptItem[];
+}
+
+// 视觉宽度：全角字符（中日韩等）按 2 列计算，58mm 纸约 32 列
+function displayWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code > 0x1100 && code <= 0xff60) w += 2;
+    else w += 1;
+  }
+  return w;
+}
+function padEndW(s: string, width: number): string {
+  let out = s;
+  while (displayWidth(out) < width) out += " ";
+  return out;
+}
+function padStartW(s: string, width: number): string {
+  let out = s;
+  while (displayWidth(out) < width) out = " " + out;
+  return out;
+}
+
+// 组装订单小票：初始化 + 居中放大标题 + 单号/时间 + 明细 + 合计 + 走纸切纸
+export function buildOrderPayload(o: ReceiptOrder): number[] {
+  const lines: string[] = [
+    "订单小票",
+    "--------------------------------",
+    `单号 ${o.orderNo}`,
+    `时间 ${o.createdAt}`,
+    "--------------------------------"
+  ];
+  for (const it of o.items) {
+    const label = it.spec ? `${it.name}(${it.spec})` : it.name;
+    lines.push(padEndW(`${label} x${it.qty}`, 24) + padStartW(`¥${((it.price * it.qty) / 100).toFixed(2)}`, 8));
+  }
+  lines.push("--------------------------------");
+  lines.push(padEndW("合计", 24) + padStartW(`¥${(o.total / 100).toFixed(2)}`, 8));
+  lines.push(padEndW(`共 ${o.count} 件`, 24));
+
+  const parts: Uint8Array[] = [
+    new Uint8Array(ESC_INIT),
+    new Uint8Array(ESC_ALIGN_CENTER),
+    new Uint8Array([0x1d, 0x21, 0x11]), // GS ! 双倍宽高（标题）
+    encodeGbk(lines[0] ?? "订单小票"),
+    new Uint8Array([0x0a]),
+    new Uint8Array([0x1b, 0x61, 0x00]), // ESC a 0 左对齐
+    encodeGbk(lines.slice(1).join("\n")),
+    new Uint8Array(ESC_FEED),
+    new Uint8Array([0x1d, 0x56, 0x41, 0x03]) // GS V A 3 走纸并切纸
+  ];
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const payload = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) {
+    payload.set(p, offset);
+    offset += p.length;
+  }
+  return Array.from(payload);
+}
+
 // ==================== 原生：经典蓝牙 SPP ====================
 export interface SppDevice {
   address: string;

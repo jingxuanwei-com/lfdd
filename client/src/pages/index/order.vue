@@ -1,13 +1,372 @@
 <template>
-  <q-page class="flex flex-center">
-    <div class="column items-center q-gutter-sm">
-      <q-icon name="receipt_long" size="64px" color="primary" />
-      <div class="text-h5">订单</div>
-      <div class="text-grey-7">我的订单列表（待开发）</div>
+  <q-page class="order-page column" :style-fn="pageStyle">
+    <!-- 标题栏 -->
+    <div class="row items-center justify-between q-px-md q-py-sm">
+      <span class="text-subtitle1 text-weight-medium">订单</span>
+      <q-btn flat dense size="sm" color="primary" icon="refresh" label="刷新" @click="loadOrders(true)" />
     </div>
+
+    <!-- 空态 -->
+    <div v-if="orders.length === 0 && !loading" class="column items-center justify-center empty-box">
+      <q-icon name="receipt_long" size="64px" color="grey-4" />
+      <div class="text-h6 text-grey-7 q-mt-md">还没有订单</div>
+      <q-btn class="q-mt-md" color="primary" label="去点单" to="/" />
+    </div>
+
+    <div v-else class="order-list">
+      <div v-if="loading" class="state-box text-grey-6">加载中…</div>
+      <div v-if="errorMsg" class="state-box text-negative">{{ errorMsg }}</div>
+
+      <!-- 订单卡片 -->
+      <div v-for="o in orders" :key="o.id" class="order-card">
+        <div class="row items-center justify-between">
+          <div class="col">
+            <div class="text-weight-medium">{{ o.order_no }}</div>
+            <div class="text-caption text-grey-6">{{ o.created_at }}</div>
+          </div>
+          <q-btn
+            color="primary"
+            icon="print"
+            label="打印"
+            unelevated
+            size="sm"
+            @click="openPrint(o)"
+          />
+        </div>
+
+        <div class="order-items q-mt-sm">
+          <div v-for="(it, idx) in o.items" :key="idx" class="order-item row items-center">
+            <div class="item-thumb">
+              <img v-if="it.image" :src="imgSrc(it.image)" :alt="it.name" />
+              <q-icon v-else name="shopping_bag" size="20px" color="grey-5" />
+            </div>
+            <div class="col">
+              <div class="ellipsis">{{ it.name }}</div>
+              <div v-if="it.spec" class="text-caption text-grey-6 ellipsis">{{ it.spec }}</div>
+            </div>
+            <div class="text-caption text-grey-7">x{{ it.qty }}</div>
+            <div class="text-caption text-weight-medium" style="min-width: 64px; text-align: right">
+              ¥{{ fmtPrice(it.price * it.qty) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="row items-center justify-end q-gutter-sm q-mt-sm">
+          <span class="text-caption text-grey-7">共 {{ o.count }} 件</span>
+          <span class="text-weight-bold text-negative">合计 ¥{{ fmtPrice(o.total) }}</span>
+        </div>
+      </div>
+
+      <div class="text-center q-pb-md">
+        <q-btn
+          v-if="hasMore"
+          flat
+          dense
+          color="primary"
+          :loading="loadingMore"
+          label="加载更多"
+          @click="loadOrders(false)"
+        />
+        <span v-else-if="orders.length > 0" class="text-caption text-grey-6">— 没有更多了 —</span>
+      </div>
+    </div>
+
+    <!-- 打印小票对话框 -->
+    <q-dialog v-model="printDlg">
+      <q-card class="print-card">
+        <q-card-section class="row items-center justify-between">
+          <span class="text-subtitle1 text-weight-medium">打印小票</span>
+          <q-icon name="print" color="primary" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          <div class="text-caption text-grey-7">订单 {{ printOrder?.order_no }}</div>
+
+          <div class="row q-gutter-sm q-mt-md">
+            <q-btn
+              color="primary"
+              label="选择蓝牙设备"
+              unelevated
+              icon="bluetooth"
+              :loading="printing"
+              @click="printBle"
+            />
+            <q-btn
+              outline
+              color="primary"
+              label="已配对设备"
+              icon="list"
+              :loading="loadingSpp"
+              @click="loadSppDevices"
+            />
+          </div>
+
+          <q-list v-if="sppDevices.length > 0" bordered separator class="q-mt-sm">
+            <q-item v-for="d in sppDevices" :key="d.address" clickable @click="printSpp(d)">
+              <q-item-section avatar><q-icon name="bluetooth" color="primary" /></q-item-section>
+              <q-item-section>{{ d.name || d.address }}</q-item-section>
+              <q-item-section side><q-icon name="print" color="grey-7" /></q-item-section>
+            </q-item>
+          </q-list>
+
+          <div
+            v-if="printStatus"
+            class="q-mt-sm text-caption"
+            :class="printStatusOk ? 'text-positive' : 'text-negative'"
+          >
+            {{ printStatus }}
+          </div>
+          <div v-else class="q-mt-sm text-caption text-grey-6">
+            「选择蓝牙设备」弹系统选择框（BLE）；打印机是经典蓝牙时用「已配对设备」列表。
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="关闭" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-//
+import { computed, onMounted, ref } from "vue";
+import { useQuasar } from "quasar";
+import { fmtPrice, imgSrc } from "../../utils/cart";
+import {
+  bleInit,
+  blePrint,
+  buildOrderPayload,
+  describeError,
+  isNative,
+  sppList,
+  sppPrint,
+  webBluetoothPrint,
+  type ReceiptOrder,
+  type SppDevice
+} from "../../utils/printer";
+
+const $q = useQuasar();
+
+interface OrderItem {
+  goods_id: string;
+  name: string;
+  price: number; // 单价，分
+  spec: string;
+  qty: number;
+  image: string;
+}
+interface Order {
+  id: string;
+  order_no: string;
+  total: number; // 合计，分
+  count: number;
+  created_at: string;
+  items: OrderItem[];
+}
+
+const PAGE_SIZE = 30;
+const orders = ref<Order[]>([]);
+const total = ref(0);
+const page = ref(1);
+const loading = ref(false);
+const loadingMore = ref(false);
+const errorMsg = ref("");
+
+const hasMore = computed(() => orders.value.length < total.value);
+
+// QPage styleFn：header/footer 占位后剩余高度，让页面撑满、列表区各自滚动
+function pageStyle(offset: number, height: number) {
+  if (height > 0) {
+    return { height: `${height - offset}px` };
+  }
+  return { height: offset !== 0 ? `calc(100vh - ${offset}px)` : "100vh" };
+}
+
+function describeErrorLocal(e: unknown) {
+  return e instanceof Error ? e.message : String(e);
+}
+
+// 订单分页（reset=true 重新第一页，false 加载更多）
+async function loadOrders(reset: boolean) {
+  if (reset) {
+    page.value = 1;
+    errorMsg.value = "";
+    loading.value = true;
+  } else {
+    loadingMore.value = true;
+  }
+  try {
+    const res = await fetch(`/api/order/page?page=${page.value}&page_size=${PAGE_SIZE}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `请求失败（${res.status}）`);
+
+    const list: Order[] = Array.isArray(data.list) ? data.list : [];
+    orders.value = reset ? list : [...orders.value, ...list];
+    total.value = typeof data.total === "number" ? data.total : 0;
+    if (list.length > 0) page.value += 1;
+  } catch (e) {
+    if (reset) {
+      orders.value = [];
+      total.value = 0;
+    }
+    errorMsg.value = `加载失败：${describeErrorLocal(e)}，请确认后端服务已启动`;
+  } finally {
+    loading.value = false;
+    loadingMore.value = false;
+  }
+}
+
+// ================= 打印小票 =================
+const printDlg = ref(false);
+const printOrder = ref<Order | null>(null);
+const printing = ref(false);
+const loadingSpp = ref(false);
+const sppDevices = ref<SppDevice[]>([]);
+const printStatus = ref("");
+const printStatusOk = ref(false);
+
+function openPrint(o: Order) {
+  printOrder.value = o;
+  printStatus.value = "";
+  sppDevices.value = [];
+  printDlg.value = true;
+}
+
+function toReceipt(o: Order): ReceiptOrder {
+  return {
+    orderNo: o.order_no,
+    createdAt: o.created_at,
+    count: o.count,
+    total: o.total,
+    items: o.items.map((it) => ({ name: it.name, spec: it.spec, qty: it.qty, price: it.price }))
+  };
+}
+
+// BLE / 网页：弹系统设备选择框，选中即打印
+async function printBle() {
+  if (!printOrder.value || printing.value) return;
+  printing.value = true;
+  try {
+    if (isNative()) {
+      try {
+        await bleInit(); // 初始化（触发 Android「附近设备」权限）
+      } catch {
+        // 已初始化过则忽略
+      }
+    }
+    const payload = buildOrderPayload(toReceipt(printOrder.value));
+    const name = isNative() ? await blePrint(payload) : await webBluetoothPrint(payload);
+    printStatusOk.value = true;
+    printStatus.value = `已发送到「${name}」，请查看打印机出纸`;
+  } catch (e) {
+    printStatusOk.value = false;
+    printStatus.value = describeError(e);
+  } finally {
+    printing.value = false;
+  }
+}
+
+// 经典蓝牙：读取系统已配对设备，点击即打印
+async function loadSppDevices() {
+  loadingSpp.value = true;
+  try {
+    sppDevices.value = await sppList();
+    if (sppDevices.value.length === 0) {
+      $q.notify({ message: "没有已配对的蓝牙设备，请先在系统设置中配对打印机", color: "orange" });
+    }
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    loadingSpp.value = false;
+  }
+}
+
+async function printSpp(d: SppDevice) {
+  if (!printOrder.value || printing.value) return;
+  printing.value = true;
+  try {
+    const payload = buildOrderPayload(toReceipt(printOrder.value));
+    const name = await sppPrint(d, payload);
+    printStatusOk.value = true;
+    printStatus.value = `已发送到「${name}」，请查看打印机出纸`;
+  } catch (e) {
+    printStatusOk.value = false;
+    printStatus.value = describeError(e);
+  } finally {
+    printing.value = false;
+  }
+}
+
+onMounted(() => {
+  void loadOrders(true);
+});
 </script>
+
+<style scoped lang="scss">
+.order-page {
+  overflow: hidden;
+  background: #fff;
+}
+
+.empty-box {
+  flex: 1;
+}
+
+.order-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+
+.state-box {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.order-card {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.order-items {
+  border-top: 1px solid #f5f5f5;
+}
+
+.order-item {
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f5f5f5;
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.item-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.print-card {
+  min-width: 340px;
+  max-width: 90vw;
+}
+</style>

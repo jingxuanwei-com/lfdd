@@ -1,0 +1,60 @@
+package handler
+
+import (
+	"server/service"
+
+	"github.com/gin-gonic/gin"
+)
+
+type ApiOrderHandler struct {
+}
+
+// Create 创建订单（购物车结算）：按库中价格结算并扣库存
+// body: {"items":[{"id":"101","qty":2}]} → {"id":"1","order_no":"20261114120000123456","total":3700}
+func (h *ApiOrderHandler) Create(c *gin.Context) {
+	var req service.CreateOrderInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.CreateOrder(req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
+
+// Page 订单分页（最新在前，含明细，供列表展示与小票打印）
+// query: page（默认 1）、page_size（默认 20，上限 100）
+func (h *ApiOrderHandler) Page(c *gin.Context) {
+	var req struct {
+		Page     int `form:"page"`
+		PageSize int `form:"page_size"`
+	}
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.GetOrders(service.GetOrdersInput{
+		Page:     req.Page,
+		PageSize: req.PageSize,
+	})
+	if err != nil {
+		c.JSON(500, gin.H{
+			"message": "服务器内部错误",
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
