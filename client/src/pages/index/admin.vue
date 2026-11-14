@@ -153,7 +153,7 @@
         <!-- ============ 分类管理 ============ -->
         <q-tab-panel name="menus" class="q-pa-none q-pt-sm">
           <q-toolbar class="q-px-none">
-            <div class="text-grey-7 text-caption">上移 / 下移调整前台侧边栏顺序</div>
+            <div class="text-grey-7 text-caption">拖动分类行调整前台侧边栏顺序</div>
             <q-space />
             <q-btn color="primary" icon="add" label="新建分类" @click="openMenu()" />
           </q-toolbar>
@@ -161,29 +161,25 @@
           <div v-if="menus.length === 0" class="text-grey-6 q-pa-md">暂无分类。</div>
 
           <q-list v-else separator>
-            <q-item v-for="(m, idx) in menus" :key="m.id">
+            <q-item
+              v-for="(m, idx) in menus"
+              :key="m.id"
+              class="menu-row"
+              draggable="true"
+              @dragstart="onMenuDragStart(idx)"
+              @dragover.prevent
+              @drop="onMenuDrop(idx)"
+              @dragend="dragMenuIdx = null"
+            >
+              <q-item-section avatar>
+                <q-icon name="drag_indicator" color="grey-5" />
+              </q-item-section>
               <q-item-section>
                 <q-item-label>{{ m.name }}</q-item-label>
                 <q-item-label caption>ID {{ m.id }}</q-item-label>
               </q-item-section>
               <q-item-section side>
                 <div class="row no-wrap">
-                  <q-btn
-                    dense
-                    flat
-                    round
-                    icon="arrow_upward"
-                    :disable="idx === 0"
-                    @click="moveMenu(idx, -1)"
-                  />
-                  <q-btn
-                    dense
-                    flat
-                    round
-                    icon="arrow_downward"
-                    :disable="idx === menus.length - 1"
-                    @click="moveMenu(idx, 1)"
-                  />
                   <q-btn dense flat round icon="edit" @click="openMenu(m)" />
                   <q-btn dense flat round icon="delete" color="negative" @click="removeMenu(m)" />
                 </div>
@@ -562,13 +558,20 @@ function removeMenu(m: SidebarMenu) {
   });
 }
 
-async function moveMenu(idx: number, dir: -1 | 1) {
-  const j = idx + dir;
-  if (j < 0 || j >= menus.value.length) return;
+// ================= 分类拖拽排序 =================
+const dragMenuIdx = ref<number | null>(null);
+
+function onMenuDragStart(idx: number) {
+  dragMenuIdx.value = idx;
+}
+
+async function onMenuDrop(idx: number) {
+  const from = dragMenuIdx.value;
+  dragMenuIdx.value = null;
+  if (from === null || from === idx) return;
   const ids = menus.value.map((m) => m.id);
-  const tmp = ids[idx]!;
-  ids[idx] = ids[j]!;
-  ids[j] = tmp;
+  const moved = ids.splice(from, 1)[0]!;
+  ids.splice(idx, 0, moved);
   try {
     await api("/api/menu/sort", { method: "POST", body: { ids } });
     await loadMenus();
@@ -904,5 +907,12 @@ onMounted(async () => {
 .scan-list {
   max-height: calc(100vh - 320px);
   overflow-y: auto;
+}
+
+.menu-row {
+  cursor: grab;
+  &:active {
+    cursor: grabbing;
+  }
 }
 </style>
