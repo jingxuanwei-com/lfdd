@@ -1,87 +1,331 @@
 <template>
-  <q-page class="flex flex-center">
-    <div class="column items-center q-gutter-sm" style="min-width: 360px">
-      <q-icon name="admin_panel_settings" size="64px" color="primary" />
-      <div class="text-h5">后台</div>
-      <div class="text-grey-7">菜单 / 商品管理（对接 /api/menu、/api/goods 管理接口）</div>
+  <q-page class="q-pa-md">
+    <!-- ================= 未登录：登录 / 注册 ================= -->
+    <div v-if="!token" class="flex flex-center" style="min-height: 60vh">
+      <q-card style="width: 360px; max-width: 95vw">
+        <q-tabs
+          v-model="authTab"
+          dense
+          class="text-grey-7"
+          active-color="primary"
+          indicator-color="primary"
+          align="justify"
+          narrow-indicator
+        >
+          <q-tab name="login" label="登录" />
+          <q-tab name="register" label="注册" />
+        </q-tabs>
+        <q-separator />
 
-      <!-- 小票机连接测试 -->
-      <q-btn
-        class="q-mt-lg"
-        color="primary"
-        icon="print"
-        label="测试小票机（打印「你好 蓝牙小票机」）"
-        :loading="printing"
-        @click="testPrinter"
-      />
-      <q-btn
-        class="q-mt-sm"
-        color="secondary"
-        icon="bluetooth"
-        label="Web蓝牙测试（强制走 Web Bluetooth）"
-        :loading="printingWeb"
-        @click="testWebBluetooth"
-      />
-      <q-banner
-        v-if="status"
-        dense
-        rounded
-        class="q-mt-sm"
-        :class="statusOk ? 'bg-green-1 text-green-9' : 'bg-red-1 text-red-9'"
-      >
-        {{ status }}
-      </q-banner>
+        <q-card-section class="column q-gutter-sm">
+          <q-input
+            v-if="authTab === 'register'"
+            v-model="regEmail"
+            label="邮箱"
+            type="email"
+            outlined
+            dense
+            autofocus
+          />
+          <q-input
+            v-else
+            v-model="account"
+            label="账号（用户名 / 邮箱）"
+            outlined
+            dense
+            autofocus
+          />
+          <q-input
+            v-model="password"
+            label="密码"
+            type="password"
+            outlined
+            dense
+            :hint="authTab === 'register' ? '至少 8 位' : undefined"
+            @keyup.enter="submitAuth"
+          />
+          <div v-if="authError" class="text-negative text-caption">{{ authError }}</div>
+          <q-btn
+            color="primary"
+            :label="authTab === 'login' ? '登录' : '注册并登录'"
+            :loading="authBusy"
+            @click="submitAuth"
+          />
+        </q-card-section>
+      </q-card>
     </div>
 
-    <!-- 打印机选择：已配对的经典蓝牙设备 + BLE 搜索 -->
-    <q-dialog v-model="picker">
-      <q-card style="min-width: 320px">
-        <q-card-section class="text-subtitle1">选择打印机</q-card-section>
-        <q-list>
-          <q-item
-            v-for="d in sppDevices"
-            :key="d.address"
-            v-close-popup
-            clickable
-            @click="runPrint(() => sppPrint(d, buildTestPayload()), 'SPP')"
+    <!-- ================= 已登录：管理界面 ================= -->
+    <div v-else class="admin-wrap">
+      <div class="row items-center q-mb-sm">
+        <div class="text-h6">后台管理</div>
+        <q-space />
+        <q-btn flat dense color="negative" icon="logout" label="退出登录" @click="logout" />
+      </div>
+
+      <q-tabs
+        v-model="tab"
+        dense
+        class="text-grey-7"
+        active-color="primary"
+        indicator-color="primary"
+        align="justify"
+        narrow-indicator
+      >
+        <q-tab name="goods" label="商品管理" icon="inventory_2" />
+        <q-tab name="menus" label="分类管理" icon="category" />
+        <q-tab name="print" label="打印测试" icon="print" />
+      </q-tabs>
+      <q-separator />
+
+      <q-tab-panels v-model="tab" animated class="bg-transparent">
+        <!-- ============ 商品管理 ============ -->
+        <q-tab-panel name="goods" class="q-pa-none q-pt-sm">
+          <q-toolbar class="q-px-none">
+            <q-select
+              v-model="filterMenu"
+              :options="menuFilterOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              label="分类"
+              style="min-width: 160px"
+            />
+            <q-space />
+            <q-btn
+              color="primary"
+              icon="add"
+              label="新建商品"
+              :disable="menus.length === 0"
+              @click="openGoods()"
+            />
+          </q-toolbar>
+
+          <div v-if="menus.length === 0" class="text-grey-6 q-pa-md">
+            还没有分类，先到「分类管理」创建一个分类。
+          </div>
+
+          <div v-else-if="goodsLoading" class="text-grey-6 q-pa-md">加载中…</div>
+
+          <div v-else-if="goodsList.length === 0" class="text-grey-6 q-pa-md">
+            该分类下暂无商品，点右上角「新建商品」添加。
+          </div>
+
+          <q-list v-else separator>
+            <q-item v-for="g in goodsList" :key="g.id">
+              <q-item-section avatar>
+                <div class="goods-thumb">
+                  <img v-if="g.image" :src="g.image" :alt="g.name" />
+                  <q-icon v-else name="shopping_bag" size="22px" color="grey-5" />
+                </div>
+              </q-item-section>
+              <q-item-section>
+                <q-item-label class="text-weight-medium">{{ g.name }}</q-item-label>
+                <q-item-label caption>
+                  {{ menuName(g.menu_id) }}
+                  <span v-if="g.spec"> · {{ g.spec }}</span>
+                  · 库存 {{ g.stock === -1 ? "不限" : g.stock }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side class="text-negative text-weight-bold">
+                ¥{{ (g.price / 100).toFixed(2) }}
+              </q-item-section>
+              <q-item-section side>
+                <q-toggle
+                  :model-value="g.status === 1"
+                  :label="g.status === 1 ? '上架' : '下架'"
+                  dense
+                  color="positive"
+                  @update:model-value="(v: boolean) => toggleStatus(g, v)"
+                />
+              </q-item-section>
+              <q-item-section side>
+                <div class="row no-wrap">
+                  <q-btn dense flat round icon="edit" @click="openGoods(g)" />
+                  <q-btn dense flat round icon="delete" color="negative" @click="removeGoods(g)" />
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-tab-panel>
+
+        <!-- ============ 分类管理 ============ -->
+        <q-tab-panel name="menus" class="q-pa-none q-pt-sm">
+          <q-toolbar class="q-px-none">
+            <div class="text-grey-7 text-caption">上移 / 下移调整前台侧边栏顺序</div>
+            <q-space />
+            <q-btn color="primary" icon="add" label="新建分类" @click="openMenu()" />
+          </q-toolbar>
+
+          <div v-if="menus.length === 0" class="text-grey-6 q-pa-md">暂无分类。</div>
+
+          <q-list v-else separator>
+            <q-item v-for="(m, idx) in menus" :key="m.id">
+              <q-item-section>
+                <q-item-label>{{ m.name }}</q-item-label>
+                <q-item-label caption>ID {{ m.id }}</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <div class="row no-wrap">
+                  <q-btn
+                    dense
+                    flat
+                    round
+                    icon="arrow_upward"
+                    :disable="idx === 0"
+                    @click="moveMenu(idx, -1)"
+                  />
+                  <q-btn
+                    dense
+                    flat
+                    round
+                    icon="arrow_downward"
+                    :disable="idx === menus.length - 1"
+                    @click="moveMenu(idx, 1)"
+                  />
+                  <q-btn dense flat round icon="edit" @click="openMenu(m)" />
+                  <q-btn dense flat round icon="delete" color="negative" @click="removeMenu(m)" />
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-tab-panel>
+
+        <!-- ============ 打印测试 ============ -->
+        <q-tab-panel name="print" class="column items-start q-gutter-sm">
+          <q-btn
+            color="primary"
+            icon="print"
+            label="测试小票机（打印「你好 蓝牙小票机」）"
+            :loading="printing"
+            @click="testPrinter"
+          />
+          <q-btn
+            color="secondary"
+            icon="bluetooth"
+            label="Web蓝牙测试（强制走 Web Bluetooth）"
+            :loading="printingWeb"
+            @click="testWebBluetooth"
+          />
+          <q-banner
+            v-if="status"
+            dense
+            rounded
+            :class="statusOk ? 'bg-green-1 text-green-9' : 'bg-red-1 text-red-9'"
           >
-            <q-item-section avatar>
-              <q-icon name="bluetooth" color="primary" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>{{ d.name || "未知设备" }}</q-item-label>
-              <q-item-label caption>经典蓝牙 · {{ d.address }}</q-item-label>
-            </q-item-section>
-          </q-item>
-          <q-item
-            v-close-popup
-            clickable
-            @click="runPrint(() => blePrint(buildTestPayload()), 'BLE')"
-          >
-            <q-item-section avatar>
-              <q-icon name="bluetooth_searching" color="primary" />
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>搜索 BLE 设备…</q-item-label>
-              <q-item-label caption>低功耗蓝牙打印机</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-        <q-card-actions align="right">
-          <q-btn v-close-popup flat label="取消" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+            {{ status }}
+          </q-banner>
+        </q-tab-panel>
+      </q-tab-panels>
+
+      <!-- ============ 新建 / 编辑商品 ============ -->
+      <q-dialog v-model="goodsDlg">
+        <q-card style="min-width: 360px; max-width: 95vw">
+          <q-card-section class="text-subtitle1">
+            {{ goodsForm.id ? "编辑商品" : "新建商品" }}
+          </q-card-section>
+
+          <q-card-section class="column q-gutter-sm">
+            <q-select
+              v-model="goodsForm.menu_id"
+              :options="menuOptions"
+              emit-value
+              map-options
+              label="所属分类"
+              outlined
+              dense
+            />
+            <q-input v-model="goodsForm.name" label="名称" outlined dense autofocus />
+            <q-input
+              v-model="goodsForm.priceYuan"
+              label="价格（元）"
+              type="number"
+              step="0.01"
+              min="0"
+              outlined
+              dense
+            />
+            <q-input v-model="goodsForm.spec" label="规格（如：大杯 / 500g，可空）" outlined dense />
+            <q-input
+              v-model="goodsForm.stock"
+              label="库存"
+              type="number"
+              outlined
+              dense
+              hint="-1 = 不限库存，0 = 售罄"
+            />
+            <q-input v-model="goodsForm.image" label="图片地址（URL，可空）" outlined dense />
+            <div v-if="goodsForm.image" class="row items-center q-gutter-sm">
+              <img
+                :src="goodsForm.image"
+                class="goods-thumb"
+                style="width: 48px; height: 48px"
+                alt=""
+              />
+              <span class="text-caption text-grey-6">预览</span>
+            </div>
+            <q-toggle v-model="goodsForm.statusOn" label="上架销售" color="positive" />
+          </q-card-section>
+
+          <q-card-actions align="right">
+            <q-btn flat label="取消" v-close-popup />
+            <q-btn color="primary" label="保存" :loading="goodsSaving" @click="saveGoods" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <!-- ============ 新建 / 编辑分类 ============ -->
+      <q-dialog v-model="menuDlg">
+        <q-card style="min-width: 300px; max-width: 95vw">
+          <q-card-section class="text-subtitle1">
+            {{ menuForm.id ? "编辑分类" : "新建分类" }}
+          </q-card-section>
+          <q-card-section>
+            <q-input
+              v-model="menuForm.name"
+              label="分类名称"
+              outlined
+              dense
+              autofocus
+              @keyup.enter="saveMenu"
+            />
+          </q-card-section>
+          <q-card-actions align="right">
+            <q-btn flat label="取消" v-close-popup />
+            <q-btn color="primary" label="保存" :loading="menuSaving" @click="saveMenu" />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
+      <!-- ============ 选择打印机 ============ -->
+      <q-dialog v-model="printerDialog">
+        <q-card style="min-width: 300px">
+          <q-card-section class="text-subtitle1">选择小票机</q-card-section>
+
+          <q-list separator>
+            <q-item
+              v-for="(p, i) in sppDevices"
+              :key="i"
+              clickable
+              @click="pickPrinter(p)"
+            >
+              <q-item-section>{{ p.name || p.address }}</q-item-section>
+              <q-item-section side caption>{{ p.address }}</q-item-section>
+            </q-item>
+          </q-list>
+        </q-card>
+      </q-dialog>
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
+import { useQuasar } from "quasar";
 import {
   bleInit,
   blePrint,
-  buildTestPayload,
-  describeError,
   isNative,
   sppList,
   sppPrint,
@@ -89,34 +333,429 @@ import {
   type SppDevice
 } from "@/utils/printer";
 
+const $q = useQuasar();
+
+const TOKEN_KEY = "lfdd_token";
+
+// ================= 类型 =================
+interface SidebarMenu {
+  id: string;
+  name: string;
+}
+
+interface AdminGoods {
+  id: string;
+  menu_id: string;
+  name: string;
+  price: number; // 分
+  spec: string;
+  stock: number;
+  image: string;
+  sort: number;
+  status: number;
+}
+
+// ================= 通用 =================
+function describeError(e: unknown) {
+  return e instanceof Error ? e.message : String(e);
+}
+
+// ================= 认证 =================
+const token = ref(localStorage.getItem(TOKEN_KEY) ?? "");
+const authTab = ref("login");
+const account = ref("");
+const regEmail = ref("");
+const password = ref("");
+const authBusy = ref(false);
+const authError = ref("");
+
+function setToken(t: string) {
+  token.value = t;
+  localStorage.setItem(TOKEN_KEY, t);
+}
+
+// 统一请求：自动带 Bearer token，401 时清理登录态
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function api(path: string, opts: { method?: string; body?: unknown } = {}): Promise<any> {
+  const res = await fetch(path, {
+    method: opts.method ?? "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token.value ? { Authorization: `Bearer ${token.value}` } : {})
+    },
+    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {})
+  });
+
+  if (res.status === 401) {
+    token.value = "";
+    localStorage.removeItem(TOKEN_KEY);
+    throw new Error("登录已过期，请重新登录");
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.message || `请求失败（${res.status}）`);
+  }
+  return data;
+}
+
+async function submitAuth() {
+  authError.value = "";
+  authBusy.value = true;
+  try {
+    const isRegister = authTab.value === "register";
+    const data = await api(isRegister ? "/api/auth/register" : "/api/auth/login", {
+      method: "POST",
+      body: isRegister
+        ? { email: regEmail.value.trim(), password: password.value }
+        : { account: account.value.trim(), password: password.value }
+    });
+    setToken(data.token);
+    password.value = "";
+    await loadMenus();
+    await loadGoods();
+  } catch (e) {
+    authError.value = describeError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function logout() {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+  } catch {
+    // token 已失效也照常退出
+  }
+  token.value = "";
+  localStorage.removeItem(TOKEN_KEY);
+  menus.value = [];
+  goodsList.value = [];
+}
+
+// ================= 分类 =================
+const menus = ref<SidebarMenu[]>([]);
+const menuDlg = ref(false);
+const menuSaving = ref(false);
+const menuForm = reactive({ id: "", name: "" });
+
+const menuOptions = computed(() => menus.value.map((m) => ({ label: m.name, value: m.id })));
+const menuFilterOptions = computed(() => [
+  { label: "全部分类", value: "0" },
+  ...menuOptions.value
+]);
+
+function menuName(id: string) {
+  return menus.value.find((m) => m.id === id)?.name ?? "-";
+}
+
+async function loadMenus() {
+  const data = await api("/api/goods/sidebar");
+  menus.value = Array.isArray(data.menus) ? data.menus : [];
+}
+
+function openMenu(m?: SidebarMenu) {
+  menuForm.id = m?.id ?? "";
+  menuForm.name = m?.name ?? "";
+  menuDlg.value = true;
+}
+
+async function saveMenu() {
+  const name = menuForm.name.trim();
+  if (!name) {
+    $q.notify({ message: "请输入分类名称", color: "negative" });
+    return;
+  }
+  menuSaving.value = true;
+  try {
+    if (menuForm.id) {
+      await api("/api/menu/update", { method: "POST", body: { id: menuForm.id, name } });
+    } else {
+      await api("/api/menu/create", { method: "POST", body: { name, sort: menus.value.length } });
+    }
+    $q.notify({ message: "保存成功", color: "positive" });
+    menuDlg.value = false;
+    await loadMenus();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    menuSaving.value = false;
+  }
+}
+
+function removeMenu(m: SidebarMenu) {
+  $q.dialog({
+    title: "删除分类",
+    message: `确定删除「${m.name}」？分类下有商品时会被后端拒绝。`,
+    cancel: true
+  }).onOk(async () => {
+    try {
+      await api("/api/menu/delete", { method: "POST", body: { id: m.id } });
+      $q.notify({ message: "已删除", color: "positive" });
+      await loadMenus();
+      if (filterMenu.value === m.id) filterMenu.value = "0";
+      await loadGoods();
+    } catch (e) {
+      $q.notify({ message: describeError(e), color: "negative" });
+    }
+  });
+}
+
+async function moveMenu(idx: number, dir: -1 | 1) {
+  const j = idx + dir;
+  if (j < 0 || j >= menus.value.length) return;
+  const ids = menus.value.map((m) => m.id);
+  const tmp = ids[idx]!;
+  ids[idx] = ids[j]!;
+  ids[j] = tmp;
+  try {
+    await api("/api/menu/sort", { method: "POST", body: { ids } });
+    await loadMenus();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  }
+}
+
+// ================= 商品 =================
+const tab = ref("goods");
+const filterMenu = ref("0");
+const goodsList = ref<AdminGoods[]>([]);
+const goodsLoading = ref(false);
+const goodsDlg = ref(false);
+const goodsSaving = ref(false);
+const goodsForm = reactive({
+  id: "",
+  menu_id: "",
+  name: "",
+  priceYuan: "0",
+  spec: "",
+  stock: "-1",
+  image: "",
+  statusOn: true,
+  sort: 0
+});
+
+async function loadGoods() {
+  goodsLoading.value = true;
+  try {
+    const params = new URLSearchParams({ all: "1", page: "1", page_size: "100" });
+    if (filterMenu.value !== "0") params.set("menu_id", filterMenu.value);
+    const data = await api(`/api/goods/page?${params.toString()}`);
+    goodsList.value = Array.isArray(data.list) ? data.list : [];
+  } finally {
+    goodsLoading.value = false;
+  }
+}
+
+function openGoods(g?: AdminGoods) {
+  if (menus.value.length === 0) {
+    $q.notify({ message: "请先创建分类", color: "negative" });
+    return;
+  }
+  if (g) {
+    goodsForm.id = g.id;
+    goodsForm.menu_id = g.menu_id;
+    goodsForm.name = g.name;
+    goodsForm.priceYuan = (g.price / 100).toFixed(2);
+    goodsForm.spec = g.spec;
+    goodsForm.stock = String(g.stock);
+    goodsForm.image = g.image;
+    goodsForm.statusOn = g.status === 1;
+    goodsForm.sort = g.sort;
+  } else {
+    goodsForm.id = "";
+    goodsForm.menu_id = filterMenu.value !== "0" ? filterMenu.value : menus.value[0]!.id;
+    goodsForm.name = "";
+    goodsForm.priceYuan = "0";
+    goodsForm.spec = "";
+    goodsForm.stock = "-1";
+    goodsForm.image = "";
+    goodsForm.statusOn = true;
+    goodsForm.sort = 0;
+  }
+  goodsDlg.value = true;
+}
+
+async function saveGoods() {
+  const name = goodsForm.name.trim();
+  const price = Math.round(parseFloat(goodsForm.priceYuan || "0") * 100);
+  const stock = parseInt(goodsForm.stock, 10);
+
+  if (!name) {
+    $q.notify({ message: "请输入商品名称", color: "negative" });
+    return;
+  }
+  if (!goodsForm.menu_id) {
+    $q.notify({ message: "请选择所属分类", color: "negative" });
+    return;
+  }
+  if (!Number.isFinite(price) || price < 0) {
+    $q.notify({ message: "价格无效", color: "negative" });
+    return;
+  }
+  if (!Number.isInteger(stock)) {
+    $q.notify({ message: "库存需为整数（-1 = 不限）", color: "negative" });
+    return;
+  }
+
+  goodsSaving.value = true;
+  try {
+    const body = {
+      menu_id: goodsForm.menu_id,
+      name,
+      price,
+      spec: goodsForm.spec.trim(),
+      stock,
+      image: goodsForm.image.trim(),
+      status: goodsForm.statusOn ? 1 : 0,
+      sort: goodsForm.sort
+    };
+    if (goodsForm.id) {
+      await api("/api/goods/update", { method: "POST", body: { id: goodsForm.id, ...body } });
+    } else {
+      await api("/api/goods/create", { method: "POST", body });
+    }
+    $q.notify({ message: "保存成功", color: "positive" });
+    goodsDlg.value = false;
+    await loadGoods();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    goodsSaving.value = false;
+  }
+}
+
+async function toggleStatus(g: AdminGoods, on: boolean) {
+  try {
+    await api("/api/goods/update", {
+      method: "POST",
+      body: {
+        id: g.id,
+        menu_id: g.menu_id,
+        name: g.name,
+        price: g.price,
+        spec: g.spec,
+        stock: g.stock,
+        image: g.image,
+        status: on ? 1 : 0,
+        sort: g.sort
+      }
+    });
+    g.status = on ? 1 : 0;
+    $q.notify({ message: on ? "已上架" : "已下架", color: "positive" });
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+    await loadGoods();
+  }
+}
+
+function removeGoods(g: AdminGoods) {
+  $q.dialog({
+    title: "删除商品",
+    message: `确定删除「${g.name}」？`,
+    cancel: true
+  }).onOk(async () => {
+    try {
+      await api("/api/goods/delete", { method: "POST", body: { id: g.id } });
+      $q.notify({ message: "已删除", color: "positive" });
+      await loadGoods();
+    } catch (e) {
+      $q.notify({ message: describeError(e), color: "negative" });
+    }
+  });
+}
+
+// ================= 打印测试（原功能保留） =================
 const printing = ref(false);
 const printingWeb = ref(false);
 const status = ref("");
-const statusOk = ref(true);
-
-const picker = ref(false);
+const statusOk = ref(false);
 const sppDevices = ref<SppDevice[]>([]);
+const printerDialog = ref(false);
 
-// testPrinter：原生（Capacitor）走 SPP + BLE 插件，桌面/网页走 Web Bluetooth
+function buildTestPayload() {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const lines = [
+    "--------------------------------",
+    "你好 蓝牙小票机",
+    `当前时间：${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ` +
+      `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
+    "--------------------------------"
+  ];
+  // ESC/POS：初始化 + 居中放大 + 文本 + 走纸切纸（命令本身不含 ESC/POS）
+  const encoder = new TextEncoder();
+  const parts: Uint8Array[] = [
+    new Uint8Array([0x1b, 0x40]), // ESC @ 初始化
+    new Uint8Array([0x1b, 0x61, 0x01]), // ESC a 1 居中
+    new Uint8Array([0x1d, 0x21, 0x11]), // GS ! 双倍宽高
+    encoder.encode(lines.join("\n")),
+    new Uint8Array([0x1b, 0x61, 0x00]), // ESC a 0 左对齐
+    new Uint8Array([0x1d, 0x56, 0x41, 0x03]) // GS V A 3 走纸并切纸
+  ];
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const payload = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) {
+    payload.set(p, offset);
+    offset += p.length;
+  }
+  return Array.from(payload);
+}
+
+// 从打印机选择弹窗点选设备后打印
+async function pickPrinter(p: SppDevice) {
+  printerDialog.value = false;
+  try {
+    const name = await sppPrint(p, buildTestPayload());
+    statusOk.value = true;
+    status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
+  } catch (e) {
+    statusOk.value = false;
+    status.value = describeError(e);
+  }
+}
+
+// testPrinter：按环境自动选择通道 —— 原生 App 走 SPP（已配对设备）/ BLE（系统弹框），网页走 Web Bluetooth
 async function testPrinter() {
   status.value = "";
-  if (isNative()) {
-    try {
-      await bleInit(); // 触发「附近设备」运行时权限，SPP 也依赖这次授权
-      const devices = await sppList(); // 已配对的经典蓝牙设备
-      if (devices.length > 0) {
-        sppDevices.value = devices;
-        picker.value = true;
+  printing.value = true;
+  try {
+    if (isNative()) {
+      // 初始化 BLE（会触发 Android「附近设备」运行时权限，SPP 也依赖它）
+      try {
+        await bleInit();
+      } catch {
+        // 已初始化过或无 BLE 插件时忽略
+      }
+      const devices = await sppList();
+      if (devices.length === 1) {
+        const name = await sppPrint(devices[0]!, buildTestPayload());
+        statusOk.value = true;
+        status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
         return;
       }
-      await runPrint(() => blePrint(buildTestPayload()), "BLE");
-    } catch (e) {
-      statusOk.value = false;
-      status.value = describeError(e);
+      if (devices.length > 1) {
+        sppDevices.value = devices;
+        printerDialog.value = true;
+        return;
+      }
+      // 无已配对经典蓝牙设备 → BLE 弹系统设备选择框
+      const name = await blePrint(buildTestPayload());
+      statusOk.value = true;
+      status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
+      return;
     }
-    return;
+
+    const name = await webBluetoothPrint(buildTestPayload());
+    statusOk.value = true;
+    status.value = `已连接 Web蓝牙「${name}」，测试小票已发送，请查看打印机出纸`;
+  } catch (e) {
+    statusOk.value = false;
+    status.value = describeError(e);
+  } finally {
+    printing.value = false;
   }
-  await runPrint(() => webBluetoothPrint(buildTestPayload()), "");
 }
 
 // testWebBluetooth：不分环境，强制走 Web Bluetooth（App 内用于验证 WebView 是否提供该 API）
@@ -135,19 +774,41 @@ async function testWebBluetooth() {
   }
 }
 
-// runPrint：统一执行打印并回填状态
-async function runPrint(run: () => Promise<string>, mode: string) {
-  status.value = "";
-  printing.value = true;
+// ================= 初始化 =================
+onMounted(async () => {
+  if (!token.value) return;
   try {
-    const name = await run();
-    statusOk.value = true;
-    status.value = `已连接${mode ? mode + " " : ""}「${name}」，测试小票已发送，请查看打印机出纸`;
+    await loadMenus();
+    await loadGoods();
   } catch (e) {
-    statusOk.value = false;
-    status.value = describeError(e);
-  } finally {
-    printing.value = false;
+    // 401 时 token 已被清理，静默回到登录页；其他错误提示
+    if (token.value) {
+      $q.notify({ message: describeError(e), color: "negative" });
+    }
+  }
+});
+</script>
+
+<style scoped lang="scss">
+.admin-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.goods-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: #f5f5f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 }
-</script>
+</style>

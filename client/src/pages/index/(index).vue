@@ -2,7 +2,7 @@
   <q-page class="goods-page" :style-fn="pageStyle">
     <div class="row no-wrap goods-body">
       <!-- 左侧分类栏（蜜雪冰城/肯德基式窄边栏） -->
-      <div class="goods-sidebar">
+      <div ref="sideRef" class="goods-sidebar">
         <div
           class="sidebar-item"
           :class="{ active: activeMenuId === '0' }"
@@ -25,7 +25,7 @@
       </div>
 
       <!-- 右侧商品列表 -->
-      <div class="goods-main">
+      <div ref="mainRef" class="goods-main">
         <div v-if="errorMsg" class="error-bar text-negative text-caption">
           {{ errorMsg }}
         </div>
@@ -72,8 +72,18 @@
   </q-page>
 </template>
 
+<script lang="ts">
+// 模块级：跨路由切换保留的商品页位置（组件卸载后仍然存在）
+// 切到购物车/订单/后台再切回来时，恢复分类和两栏滚动位置
+const pagePos = {
+  activeMenuId: "0",
+  side: 0,
+  main: 0
+};
+</script>
+
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 
 // 与后端 service 对齐的接口返回结构
 interface SidebarMenu {
@@ -95,13 +105,16 @@ interface GoodsItem {
 const PAGE_SIZE = 20;
 
 const menus = ref<SidebarMenu[]>([]);
-const activeMenuId = ref("0"); // "0" = 全部
+const activeMenuId = ref(pagePos.activeMenuId); // 恢复上次选中的分类
 const goods = ref<GoodsItem[]>([]);
 const total = ref(0);
 const page = ref(1);
 const loadingGoods = ref(false);
 const loadingMore = ref(false);
 const errorMsg = ref("");
+
+const sideRef = ref<HTMLElement | null>(null);
+const mainRef = ref<HTMLElement | null>(null);
 
 let reqSeq = 0; // 递增序号，丢弃切换分类时已过期的响应
 
@@ -183,12 +196,24 @@ async function loadGoods(reset: boolean) {
 
 function selectMenu(id: string) {
   activeMenuId.value = id;
+  pagePos.activeMenuId = id;
   void loadGoods(true);
+  // 切分类后商品区回到顶部
+  if (mainRef.value) mainRef.value.scrollTop = 0;
 }
 
-onMounted(() => {
-  void loadMenus();
-  void loadGoods(true);
+onMounted(async () => {
+  await Promise.all([loadMenus(), loadGoods(true)]);
+  // 数据渲染后恢复上次的滚动位置
+  await nextTick();
+  if (sideRef.value) sideRef.value.scrollTop = pagePos.side;
+  if (mainRef.value) mainRef.value.scrollTop = pagePos.main;
+});
+
+onBeforeUnmount(() => {
+  pagePos.activeMenuId = activeMenuId.value;
+  pagePos.side = sideRef.value?.scrollTop ?? 0;
+  pagePos.main = mainRef.value?.scrollTop ?? 0;
 });
 </script>
 
