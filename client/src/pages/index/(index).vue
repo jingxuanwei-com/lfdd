@@ -89,9 +89,16 @@
                   >
                     <q-icon name="remove" size="18px" />
                   </q-btn>
-                  <span v-if="lineQty(g.id) > 0" class="qty-num text-weight-bold text-primary">
-                    {{ lineQty(g.id) }}
-                  </span>
+                  <q-input
+                    v-if="lineQty(g.id) > 0"
+                    :model-value="lineQty(g.id)"
+                    type="number"
+                    dense
+                    borderless
+                    class="qty-input"
+                    aria-label="修改数量"
+                    @change="onQtyInput(g, $event)"
+                  />
                   <q-btn
                     round
                     dense
@@ -161,7 +168,8 @@ import {
   changeQty,
   fmtPrice,
   imgSrc,
-  lineQty
+  lineQty,
+  setQty
 } from "../../utils/cart";
 // 购物车数据在 utils/cart.ts（模块级共享，购物车页同用一份）
 
@@ -217,6 +225,12 @@ const router = useRouter();
 
 function goCart() {
   void router.push("/cart");
+}
+
+// 数量输入框直接改数字：0/非法 → 移除该商品，超库存由 setQty 封顶
+function onQtyInput(g: GoodsItem, v: string | number) {
+  const n = Math.floor(Number(v));
+  setQty(g, Number.isFinite(n) ? n : 0);
 }
 
 // ================= AI 点单（后端大模型匹配商品） =================
@@ -482,10 +496,24 @@ onBeforeUnmount(() => {
   }
 }
 
-.qty-num {
-  min-width: 20px;
-  text-align: center;
-  font-size: 15px;
+/* 数量输入框：直接改数字（0 = 移除），隐藏数字框 spinner */
+.qty-input {
+  width: 48px;
+
+  :deep(input) {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--q-primary);
+    padding: 0;
+    -moz-appearance: textfield;
+  }
+
+  :deep(input::-webkit-outer-spin-button),
+  :deep(input::-webkit-inner-spin-button) {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 /* 底部悬浮购物车入口（明细在 /cart 页面看） */

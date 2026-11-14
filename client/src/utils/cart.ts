@@ -75,6 +75,25 @@ export function clearCart() {
   cart.value = [];
 }
 
+// 直接设置数量（数字输入框用）：0/非法 → 移除行，超出库存封顶到库存（stock=-1 不限）
+export function setQty(
+  item: { id: string; name: string; price: number; stock: number; image?: string; spec?: string },
+  qty: number
+) {
+  const idx = cart.value.findIndex((l) => l.id === item.id);
+  const n = Math.floor(qty);
+  if (!Number.isFinite(n) || n <= 0) {
+    if (idx >= 0) cart.value.splice(idx, 1);
+    return;
+  }
+  const capped = item.stock > 0 && n > item.stock ? item.stock : n;
+  if (idx >= 0) {
+    cart.value[idx]!.qty = capped;
+  } else {
+    cart.value.push({ ...item, image: item.image ?? "", spec: item.spec ?? "", qty: capped });
+  }
+}
+
 export function fmtPrice(price: number): string {
   return (price / 100).toFixed(2);
 }
