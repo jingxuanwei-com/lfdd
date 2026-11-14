@@ -22,6 +22,7 @@ func apiGoodsRouter() {
 	group.POST("/delete", middleware.AuthGuard(), apiGoodsHandler.Delete)
 	group.POST("/sort", middleware.AuthGuard(), apiGoodsHandler.Sort)
 	group.POST("/upload", middleware.AuthGuard(), apiGoodsHandler.Upload)
+	group.POST("/match", middleware.OptionalGuard(), apiGoodsHandler.Match)
 
 	// 图片直出（免登录）：GET /api/upload/{hash}{ext}（goods.image 存的就是这个路径）
 	web.Engine.GET("/api/upload/:name", apiGoodsHandler.Image)

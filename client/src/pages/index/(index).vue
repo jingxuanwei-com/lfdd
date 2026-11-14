@@ -26,6 +26,30 @@
 
       <!-- 右侧商品列表 -->
       <div ref="mainRef" class="goods-main">
+        <!-- AI 点单：自然语言描述 → 大模型匹配商品 → 自动加入购物车 -->
+        <div class="ai-bar row items-center q-gutter-sm">
+          <q-input
+            v-model="aiText"
+            outlined
+            dense
+            class="col"
+            placeholder="AI 点单：如「两杯柠檬水和一个冰淇淋」"
+            :disable="aiLoading"
+            @keyup.enter="aiMatch"
+          >
+            <template #prepend>
+              <q-icon name="auto_awesome" color="primary" />
+            </template>
+          </q-input>
+          <q-btn
+            color="primary"
+            label="点单"
+            unelevated
+            :loading="aiLoading"
+            @click="aiMatch"
+          />
+        </div>
+
         <div v-if="errorMsg" class="error-bar text-negative text-caption">
           {{ errorMsg }}
         </div>
@@ -130,6 +154,7 @@ const pagePos = {
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useQuasar } from "quasar";
 import {
   cartCount,
   cartTotal,
@@ -187,10 +212,62 @@ function describeError(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
 
+const $q = useQuasar();
 const router = useRouter();
 
 function goCart() {
   void router.push("/cart");
+}
+
+// ================= AI 点单（后端大模型匹配商品） =================
+const aiText = ref("");
+const aiLoading = ref(false);
+
+interface AiMatchedGoods {
+  id: string;
+  name: string;
+  price: number;
+  spec: string;
+  stock: number;
+  image: string;
+  qty: number;
+}
+
+async function aiMatch() {
+  const text = aiText.value.trim();
+  if (!text || aiLoading.value) return;
+  aiLoading.value = true;
+  try {
+    const res = await fetch("/api/goods/match", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `匹配失败（${res.status}）`);
+
+    const list: AiMatchedGoods[] = Array.isArray(data.list) ? data.list : [];
+    if (list.length === 0) {
+      $q.notify({ message: "没有匹配到商品，换个说法试试", color: "orange" });
+      return;
+    }
+    // 按返回的数量逐个加入（changeQty 内部会按库存封顶）
+    for (const item of list) {
+      const { qty, ...goods } = item;
+      for (let n = 0; n < qty; n++) {
+        changeQty(goods, 1);
+      }
+    }
+    aiText.value = "";
+    $q.notify({
+      message: `已加入 ${list.length} 种商品`,
+      color: "positive"
+    });
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    aiLoading.value = false;
+  }
 }
 
 async function fetchJson(url: string) {
@@ -381,6 +458,11 @@ onBeforeUnmount(() => {
 
 .goods-name {
   font-size: 14px;
+}
+
+/* AI 点单输入条 */
+.ai-bar {
+  margin-bottom: 12px;
 }
 
 /* 加减按钮组（大号，触屏好点） */

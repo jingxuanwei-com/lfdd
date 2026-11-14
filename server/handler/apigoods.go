@@ -168,6 +168,29 @@ func (h *ApiGoodsHandler) Upload(c *gin.Context) {
 	c.JSON(200, out)
 }
 
+// Match AI 商品匹配：前端传自然语言点单文字，后端取库中商品拼提示词调大模型，
+// 返回命中的商品完整信息 + 数量，前端据此加购物车
+// body: {"text":"两杯柠檬水"} → {"list":[{...商品字段,"qty":2}]}
+func (h *ApiGoodsHandler) Match(c *gin.Context) {
+	var req service.MatchGoodsInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.MatchGoods(req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
+
 // Image 图片直出：GET /api/upload/{hash}，校验哈希文件名后按内容类型返回文件
 func (h *ApiGoodsHandler) Image(c *gin.Context) {
 	out, err := service.GetUploadImage(service.GetUploadImageInput{Name: c.Param("name")})
