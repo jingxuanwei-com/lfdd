@@ -2,14 +2,14 @@
   <q-page class="order-page column" :style-fn="pageStyle">
     <!-- 标题栏 -->
     <div class="row items-center justify-between q-px-md q-py-sm">
-      <span class="text-subtitle1 text-weight-medium">订单</span>
+      <span class="text-body2 text-weight-medium">订单</span>
       <q-btn flat dense size="sm" color="primary" icon="refresh" label="刷新" @click="loadOrders(true)" />
     </div>
 
     <!-- 空态 -->
     <div v-if="orders.length === 0 && !loading" class="column items-center justify-center empty-box">
       <q-icon name="receipt_long" size="64px" color="grey-4" />
-      <div class="text-h6 text-grey-7 q-mt-md">还没有订单</div>
+      <div class="text-body1 text-grey-7 q-mt-md">还没有订单</div>
       <q-btn class="q-mt-md" color="primary" label="去点单" to="/" />
     </div>
 
@@ -21,7 +21,7 @@
       <div v-for="o in orders" :key="o.id" class="order-card">
         <div class="row items-center justify-between">
           <div class="col">
-            <div class="text-weight-medium">{{ o.order_no }}</div>
+            <div class="text-body2 text-weight-medium">{{ o.order_no }}</div>
             <div class="text-caption text-grey-6">{{ o.created_at }}</div>
           </div>
           <q-btn
@@ -41,7 +41,7 @@
               <q-icon v-else name="shopping_bag" size="20px" color="grey-5" />
             </div>
             <div class="col">
-              <div class="ellipsis">{{ it.name }}</div>
+              <div class="text-caption ellipsis">{{ it.name }}</div>
               <div v-if="it.spec" class="text-caption text-grey-6 ellipsis">{{ it.spec }}</div>
             </div>
             <div class="text-caption text-grey-7">x{{ it.qty }}</div>
@@ -53,7 +53,7 @@
 
         <div class="row items-center justify-end q-gutter-sm q-mt-sm">
           <span class="text-caption text-grey-7">共 {{ o.count }} 件</span>
-          <span class="text-weight-bold text-negative">合计 ¥{{ fmtPrice(o.total) }}</span>
+          <span class="text-caption text-weight-bold text-negative">合计 ¥{{ fmtPrice(o.total) }}</span>
         </div>
       </div>
 
@@ -75,7 +75,7 @@
     <q-dialog v-model="printDlg">
       <q-card class="print-card">
         <q-card-section class="row items-center justify-between">
-          <span class="text-subtitle1 text-weight-medium">打印小票</span>
+          <span class="text-body2 text-weight-medium">打印小票</span>
           <q-icon name="print" color="primary" />
         </q-card-section>
 

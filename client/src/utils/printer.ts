@@ -89,7 +89,7 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
   const parts: Uint8Array[] = [
     new Uint8Array(ESC_INIT),
     new Uint8Array(ESC_ALIGN_CENTER),
-    new Uint8Array([0x1d, 0x21, 0x11]), // GS ! 双倍宽高（标题）
+    new Uint8Array([0x1d, 0x21, 0x00]), // GS ! 正常字号（标题不放大）
     encodeGbk(lines[0] ?? "订单小票"),
     new Uint8Array([0x0a]),
     new Uint8Array([0x1b, 0x61, 0x00]), // ESC a 0 左对齐
