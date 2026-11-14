@@ -103,7 +103,7 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
     const label = it.spec ? `${it.name}(${it.spec})` : it.name;
     // 明细：价格固定在右侧列（数量x单价=小计，单价一位小数）；
     // 名称过长时折行续打（文字可错位），价格列不错位
-    const unit = (it.price / 100).toFixed(1);
+    const unit = (it.price / 100).toFixed(2);
     const subtotal = ((it.price * it.qty) / 100).toFixed(2);
     const right = padStartW(`${it.qty}x${unit}=`, 9) + padStartW(subtotal, 7);
     const nameW = Math.max(32 - displayWidth(right), 4);
@@ -115,7 +115,9 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
     }
   }
   lines.push("--------------------------------");
-  lines.push(padEndW("合计", 24) + padStartW(`￥${(o.total / 100).toFixed(2)}`, 8));
+  // 合计：总价右对齐到纸宽（与明细小计同列），按价格宽度动态留空，超长不换行
+  const totalStr = `￥${(o.total / 100).toFixed(2)}`;
+  lines.push(padEndW("合计", Math.max(32 - displayWidth(totalStr), 4)) + totalStr);
   lines.push(padEndW(`共 ${o.count} 件`, 24));
 
   const parts: Uint8Array[] = [
