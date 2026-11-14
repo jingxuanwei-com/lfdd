@@ -45,11 +45,40 @@
             <div class="col">
               <div class="goods-name text-weight-medium">{{ g.name }}</div>
               <div v-if="g.spec" class="text-caption text-grey-7 ellipsis">{{ g.spec }}</div>
-              <div class="row items-end justify-between q-mt-xs">
-                <div class="text-negative text-weight-bold">¥{{ fmtPrice(g.price) }}</div>
-                <span class="text-caption text-grey-6">
-                  {{ g.stock === 0 ? '已售罄' : g.stock === -1 ? '' : `库存 ${g.stock}` }}
-                </span>
+              <div class="row items-center justify-between q-mt-xs">
+                <div class="row items-baseline q-gutter-sm">
+                  <div class="text-negative text-weight-bold">¥{{ fmtPrice(g.price) }}</div>
+                  <span class="text-caption text-grey-6">
+                    {{ g.stock === 0 ? '已售罄' : g.stock === -1 ? '' : `库存 ${g.stock}` }}
+                  </span>
+                </div>
+                <!-- 加减按钮（大号）：数量即时算进购物车 -->
+                <div v-if="g.stock !== 0" class="qty-ctrl">
+                  <q-btn
+                    v-if="lineQty(g.id) > 0"
+                    round
+                    dense
+                    color="primary"
+                    class="sub-btn"
+                    aria-label="减少"
+                    @click="changeQty(g, -1)"
+                  >
+                    <q-icon name="remove" size="18px" />
+                  </q-btn>
+                  <span v-if="lineQty(g.id) > 0" class="qty-num text-weight-bold text-primary">
+                    {{ lineQty(g.id) }}
+                  </span>
+                  <q-btn
+                    round
+                    dense
+                    color="primary"
+                    class="add-btn"
+                    aria-label="增加"
+                    @click="changeQty(g, 1)"
+                  >
+                    <q-icon name="add" size="22px" />
+                  </q-btn>
+                </div>
               </div>
             </div>
           </div>
@@ -69,10 +98,94 @@
         </template>
       </div>
     </div>
+
+    <!-- 底部悬浮购物车条：合计实时计算，点按展开明细列表 -->
+    <div v-if="cartCount > 0 || cartOpen" class="cart-dock">
+      <!-- 明细列表（展开态） -->
+      <div v-if="cartOpen" class="cart-panel">
+        <div class="row items-center justify-between q-mb-xs">
+          <span class="text-subtitle2">购物车</span>
+          <q-btn flat dense size="sm" color="negative" label="清空" @click="clearCart" />
+        </div>
+        <div v-if="cart.length === 0" class="text-caption text-grey-6 q-pa-md text-center">
+          购物车是空的
+        </div>
+        <div v-for="line in cart" :key="line.id" class="cart-line row items-center">
+          <div class="col ellipsis">
+            <div class="text-caption ellipsis">{{ line.name }}</div>
+            <div class="text-negative text-weight-bold text-caption">
+              ¥{{ fmtPrice(line.price) }}
+            </div>
+          </div>
+          <div class="row items-center q-gutter-xs">
+            <q-btn
+              round
+              dense
+              size="sm"
+              color="primary"
+              icon="remove"
+              aria-label="减少"
+              @click="changeQty(line, -1)"
+            />
+            <span class="qty-num text-weight-medium">{{ line.qty }}</span>
+            <q-btn
+              round
+              dense
+              size="sm"
+              color="primary"
+              icon="add"
+              aria-label="增加"
+              @click="changeQty(line, 1)"
+            />
+          </div>
+          <div
+            class="text-negative text-weight-bold text-caption"
+            style="min-width: 60px; text-align: right"
+          >
+            ¥{{ fmtPrice(line.price * line.qty) }}
+          </div>
+        </div>
+        <q-separator class="q-my-sm" />
+        <div class="row items-center justify-between">
+          <span class="text-caption text-grey-7">共 {{ cartCount }} 件</span>
+          <span>
+            合计
+            <b class="text-negative text-h6">¥{{ fmtPrice(cartTotal) }}</b>
+          </span>
+        </div>
+      </div>
+
+      <!-- 悬浮条 -->
+      <div class="cart-bar row items-center" @click="cartOpen = !cartOpen">
+        <div class="relative-position">
+          <q-icon name="shopping_cart" size="26px" />
+          <q-badge v-if="cartCount" floating color="red" :label="cartCount" />
+        </div>
+        <div class="col q-ml-sm">
+          <div class="text-caption" style="line-height: 1">合计</div>
+          <div class="text-weight-bold" style="line-height: 1.2">¥{{ fmtPrice(cartTotal) }}</div>
+        </div>
+        <q-space />
+        <q-icon :name="cartOpen ? 'expand_more' : 'expand_less'" size="22px" />
+      </div>
+    </div>
   </q-page>
 </template>
 
 <script lang="ts">
+import { ref } from "vue";
+
+// 购物车行（模块级：跨路由切换保留，切到后台/订单再回来不丢）
+interface CartLine {
+  id: string;
+  name: string;
+  price: number; // 单位：分
+  stock: number; // -1 不限，0 售罄
+  qty: number;
+}
+const cart = ref<CartLine[]>([]);
+const cartOpen = ref(false);
+
 // 模块级：跨路由切换保留的商品页位置（组件卸载后仍然存在）
 // 切到购物车/订单/后台再切回来时，恢复分类和两栏滚动位置
 const pagePos = {
@@ -83,7 +196,8 @@ const pagePos = {
 </script>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted } from "vue";
+// ref 由上方 <script> 块导入，两个 script 块共享同一模块作用域
 
 // 与后端 service 对齐的接口返回结构
 interface SidebarMenu {
@@ -141,6 +255,37 @@ function imgSrc(v: string): string {
 
 function describeError(e: unknown) {
   return e instanceof Error ? e.message : String(e);
+}
+
+// ================= 购物车（纯前端计算） =================
+const cartCount = computed(() => cart.value.reduce((s, l) => s + l.qty, 0));
+const cartTotal = computed(() => cart.value.reduce((s, l) => s + l.price * l.qty, 0));
+
+function lineQty(id: string): number {
+  return cart.value.find((l) => l.id === id)?.qty ?? 0;
+}
+
+// 增减数量：delta=1 加，-1 减；受库存限制（stock=-1 不限），减到 0 自动移出行
+function changeQty(item: { id: string; name: string; price: number; stock: number }, delta: number) {
+  const idx = cart.value.findIndex((l) => l.id === item.id);
+  if (delta > 0) {
+    if (idx >= 0) {
+      const line = cart.value[idx]!;
+      if (item.stock > 0 && line.qty >= item.stock) return; // 超库存忽略
+      line.qty += 1;
+    } else {
+      cart.value.push({ ...item, qty: 1 });
+    }
+  } else if (idx >= 0) {
+    const line = cart.value[idx]!;
+    line.qty -= 1;
+    if (line.qty <= 0) cart.value.splice(idx, 1);
+  }
+}
+
+function clearCart() {
+  cart.value = [];
+  cartOpen.value = false;
 }
 
 async function fetchJson(url: string) {
@@ -331,5 +476,67 @@ onBeforeUnmount(() => {
 
 .goods-name {
   font-size: 14px;
+}
+
+/* 加减按钮组（大号，触屏好点） */
+.qty-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .add-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .sub-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+.qty-num {
+  min-width: 20px;
+  text-align: center;
+  font-size: 15px;
+}
+
+/* 底部悬浮购物车 */
+.cart-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cart-panel {
+  width: 320px;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+}
+
+.cart-line {
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.cart-bar {
+  position: relative;
+  min-width: 180px;
+  padding: 10px 16px;
+  border-radius: 28px;
+  background: $primary;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  user-select: none;
 }
 </style>
