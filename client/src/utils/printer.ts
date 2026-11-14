@@ -103,8 +103,8 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
     const label = it.spec ? `${it.name}(${it.spec})` : it.name;
     // 明细：价格固定在右侧列（数量x单价=小计，单价一位小数）；
     // 名称过长时折行续打（文字可错位），价格列不错位
-    const unit = (it.price / 100).toFixed(2);
-    const subtotal = ((it.price * it.qty) / 100).toFixed(2);
+    const unit = (it.price / 100).toFixed(1);
+    const subtotal = ((it.price * it.qty) / 100).toFixed(1);
     const right = padStartW(`${it.qty}x${unit}=`, 9) + padStartW(subtotal, 7);
     const nameW = Math.max(32 - displayWidth(right), 4);
     const segs = wrapByWidth(label, nameW);
@@ -116,14 +116,16 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
   }
   lines.push("--------------------------------");
   // 合计：总价右对齐到纸宽（与明细小计同列），按价格宽度动态留空，超长不换行
-  const totalStr = `￥${(o.total / 100).toFixed(2)}`;
+  const totalStr = `￥${(o.total / 100).toFixed(1)}`;
   lines.push(padEndW("合计", Math.max(32 - displayWidth(totalStr), 4)) + totalStr);
   lines.push(padEndW(`共 ${o.count} 件`, 24));
 
   const parts: Uint8Array[] = [
     new Uint8Array(ESC_INIT),
+    // ESC ! 选字体：本机实测 0x10 = 瘦长体（0x08 是加粗、0x20 变宽），
+    // 紧跟在 INIT 后、且不发 GS ! 等可能覆盖样式的大命令（与字体测试票同一路径）
+    new Uint8Array([0x1b, 0x21, 0x10]),
     new Uint8Array(ESC_ALIGN_CENTER),
-    new Uint8Array([0x1d, 0x21, 0x00]), // GS ! 正常字号（标题不放大）
     encodeGbk(lines[0] ?? "订单小票"),
     new Uint8Array([0x0a]),
     new Uint8Array([0x1b, 0x61, 0x00]), // ESC a 0 左对齐
