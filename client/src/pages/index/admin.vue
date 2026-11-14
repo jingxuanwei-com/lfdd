@@ -260,7 +260,7 @@
             <div class="col-6">
               <q-list bordered separator class="scan-list">
                 <q-item-label header class="bg-teal-1 text-teal-8">
-                  传统蓝牙（经典 SPP）
+                  传统蓝牙（SPP）
                 </q-item-label>
                 <q-item v-if="sppDevices.length === 0">
                   <q-item-section class="text-grey-6">
