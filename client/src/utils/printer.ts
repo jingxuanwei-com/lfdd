@@ -48,6 +48,26 @@ export interface ReceiptOrder {
   items: ReceiptItem[];
 }
 
+// 按视觉宽度折行（文字可以换行，全字符不切半）
+function wrapByWidth(s: string, maxW: number): string[] {
+  const rows: string[] = [];
+  let cur = "";
+  let w = 0;
+  for (const ch of s) {
+    const cw = displayWidth(ch);
+    if (cur !== "" && w + cw > maxW) {
+      rows.push(cur);
+      cur = ch;
+      w = cw;
+    } else {
+      cur += ch;
+      w += cw;
+    }
+  }
+  if (cur !== "") rows.push(cur);
+  return rows;
+}
+
 // 视觉宽度：全角字符（中日韩等）按 2 列计算，58mm 纸约 32 列
 function displayWidth(s: string): number {
   let w = 0;
@@ -81,8 +101,18 @@ export function buildOrderPayload(o: ReceiptOrder): number[] {
   ];
   for (const it of o.items) {
     const label = it.spec ? `${it.name}(${it.spec})` : it.name;
-    // 用全角 ￥（GBK A3A4）：半角 ¥ 不在 GBK，打印会变问号
-    lines.push(padEndW(`${label} x${it.qty}`, 24) + padStartW(`￥${((it.price * it.qty) / 100).toFixed(2)}`, 8));
+    // 明细：价格固定在右侧列（数量x单价=小计，单价一位小数）；
+    // 名称过长时折行续打（文字可错位），价格列不错位
+    const unit = (it.price / 100).toFixed(1);
+    const subtotal = ((it.price * it.qty) / 100).toFixed(2);
+    const right = padStartW(`${it.qty}x${unit}=`, 9) + padStartW(subtotal, 7);
+    const nameW = Math.max(32 - displayWidth(right), 4);
+    const segs = wrapByWidth(label, nameW);
+    for (let j = 0; j < segs.length; j++) {
+      // 只有最后一行补空格接价格，前面的名称行顶格换行
+      const seg = segs[j]!;
+      lines.push(j === segs.length - 1 ? padEndW(seg, nameW) + right : seg);
+    }
   }
   lines.push("--------------------------------");
   lines.push(padEndW("合计", 24) + padStartW(`￥${(o.total / 100).toFixed(2)}`, 8));
