@@ -49,6 +49,7 @@ type GoodsView struct {
 	Spec   string `json:"spec"`
 	Stock  int    `json:"stock"`
 	Image  string `json:"image"`
+	Sort   int    `json:"sort"`
 	Status int8   `json:"status"`
 }
 
@@ -56,6 +57,7 @@ type GetGoodsPageInput struct {
 	MenuID   int64 `json:"menu_id,string"` // 菜单（分类）ID，0 = 全部
 	Page     int   `json:"page"`           // 页码，从 1 开始
 	PageSize int   `json:"page_size"`      // 每页条数
+	All      bool  `json:"all"`            // true = 不过滤上下架（管理端用）
 }
 type GetGoodsPageOutput struct {
 	Total    int64       `json:"total"`
@@ -77,8 +79,11 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 		i.PageSize = 100
 	}
 
-	// 1. 统计总数（只算上架商品）
-	countQ := db.DB.Model(&model.Goods{}).Where("status = ?", 1)
+	// 1. 统计总数（默认只算上架商品，管理端 all=1 时含下架）
+	countQ := db.DB.Model(&model.Goods{})
+	if !i.All {
+		countQ = countQ.Where("status = ?", 1)
+	}
 	if i.MenuID > 0 {
 		countQ = countQ.Where("menu_id = ?", i.MenuID)
 	}
@@ -87,7 +92,10 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 	}
 
 	// 2. 分页查询（新的查询链，避免复用条件串扰）
-	listQ := db.DB.Model(&model.Goods{}).Where("status = ?", 1)
+	listQ := db.DB.Model(&model.Goods{})
+	if !i.All {
+		listQ = listQ.Where("status = ?", 1)
+	}
 	if i.MenuID > 0 {
 		listQ = listQ.Where("menu_id = ?", i.MenuID)
 	}
@@ -101,7 +109,7 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 	for _, g := range goods {
 		o.List = append(o.List, GoodsView{
 			ID: g.ID, MenuID: g.MenuID, Name: g.Name, Price: g.Price,
-			Spec: g.Spec, Stock: g.Stock, Image: g.Image, Status: g.Status,
+			Spec: g.Spec, Stock: g.Stock, Image: g.Image, Sort: g.Sort, Status: g.Status,
 		})
 	}
 	o.Page = i.Page
