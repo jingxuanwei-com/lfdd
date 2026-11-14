@@ -74,7 +74,7 @@
       >
         <q-tab name="goods" label="商品管理" icon="inventory_2" />
         <q-tab name="menus" label="分类管理" icon="category" />
-        <q-tab name="print" label="打印测试" icon="print" />
+        <q-tab name="print" label="蓝牙搜索" icon="bluetooth_searching" />
       </q-tabs>
       <q-separator />
 
@@ -192,30 +192,99 @@
           </q-list>
         </q-tab-panel>
 
-        <!-- ============ 打印测试 ============ -->
-        <q-tab-panel name="print" class="column items-start q-gutter-sm">
-          <q-btn
-            color="primary"
-            icon="print"
-            label="测试小票机（打印「你好 蓝牙小票机」）"
-            :loading="printing"
-            @click="testPrinter"
-          />
-          <q-btn
-            color="secondary"
-            icon="bluetooth"
-            label="Web蓝牙测试（强制走 Web Bluetooth）"
-            :loading="printingWeb"
-            @click="testWebBluetooth"
-          />
+        <!-- ============ 蓝牙搜索（双列：低功耗 / 传统） ============ -->
+        <q-tab-panel name="print" class="q-pa-none q-pt-sm">
+          <q-toolbar class="q-px-none">
+            <q-btn
+              color="primary"
+              icon="bluetooth_searching"
+              :label="scanning ? '搜索中…' : '搜索蓝牙'"
+              :loading="scanning"
+              @click="startScan"
+            />
+            <q-btn
+              v-if="scanning"
+              class="q-ml-sm"
+              flat
+              label="停止"
+              @click="stopScan"
+            />
+            <q-space />
+            <span class="text-caption text-grey-6">点击设备发送测试小票</span>
+          </q-toolbar>
+
           <q-banner
             v-if="status"
             dense
             rounded
+            class="q-mb-sm"
             :class="statusOk ? 'bg-green-1 text-green-9' : 'bg-red-1 text-red-9'"
           >
             {{ status }}
           </q-banner>
+
+          <div class="row q-col-gutter-sm full-height">
+            <!-- 低功耗蓝牙 -->
+            <div class="col-6">
+              <q-list bordered separator class="scan-list">
+                <q-item-label header class="bg-blue-1 text-blue-8">
+                  低功耗蓝牙（BLE）
+                </q-item-label>
+                <q-item v-if="bleDevices.length === 0">
+                  <q-item-section class="text-grey-6">
+                    {{ scanning ? "搜索中，等待附近设备广播…" : "未搜索到设备" }}
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  v-for="d in bleDevices"
+                  :key="d.deviceId"
+                  clickable
+                  v-ripple
+                  @click="printBle(d)"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="bluetooth" color="primary" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ d.name || "未命名设备" }}</q-item-label>
+                    <q-item-label caption>{{ d.deviceId }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section v-if="d.rssi != null" side caption>
+                    {{ d.rssi }} dBm
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </div>
+
+            <!-- 传统蓝牙 -->
+            <div class="col-6">
+              <q-list bordered separator class="scan-list">
+                <q-item-label header class="bg-teal-1 text-teal-8">
+                  传统蓝牙（经典 SPP）
+                </q-item-label>
+                <q-item v-if="sppDevices.length === 0">
+                  <q-item-section class="text-grey-6">
+                    {{ scanning ? "搜索中，等待设备进入配对模式…" : "未搜索到设备" }}
+                  </q-item-section>
+                </q-item>
+                <q-item
+                  v-for="d in sppDevices"
+                  :key="d.address"
+                  clickable
+                  v-ripple
+                  @click="printSpp(d)"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="settings_input_antenna" color="teal" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ d.name || "未命名设备" }}</q-item-label>
+                    <q-item-label caption>{{ d.address }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </div>
+          </div>
         </q-tab-panel>
       </q-tab-panels>
 
@@ -298,24 +367,6 @@
         </q-card>
       </q-dialog>
 
-      <!-- ============ 选择打印机 ============ -->
-      <q-dialog v-model="printerDialog">
-        <q-card style="min-width: 300px">
-          <q-card-section class="text-subtitle1">选择小票机</q-card-section>
-
-          <q-list separator>
-            <q-item
-              v-for="(p, i) in sppDevices"
-              :key="i"
-              clickable
-              @click="pickPrinter(p)"
-            >
-              <q-item-section>{{ p.name || p.address }}</q-item-section>
-              <q-item-section side caption>{{ p.address }}</q-item-section>
-            </q-item>
-          </q-list>
-        </q-card>
-      </q-dialog>
     </div>
   </q-page>
 </template>
@@ -325,11 +376,12 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import {
   bleInit,
-  blePrint,
+  blePrintTo,
+  bleScanStart,
   isNative,
-  sppList,
+  sppDiscover,
   sppPrint,
-  webBluetoothPrint,
+  type BleScanDevice,
   type SppDevice
 } from "@/utils/printer";
 
@@ -665,13 +717,13 @@ function removeGoods(g: AdminGoods) {
   });
 }
 
-// ================= 打印测试（原功能保留） =================
-const printing = ref(false);
-const printingWeb = ref(false);
+// ================= 蓝牙搜索（双列：低功耗 / 传统） =================
+const scanning = ref(false);
 const status = ref("");
 const statusOk = ref(false);
+const bleDevices = ref<BleScanDevice[]>([]);
 const sppDevices = ref<SppDevice[]>([]);
-const printerDialog = ref(false);
+let stopBle: (() => Promise<void>) | null = null;
 
 function buildTestPayload() {
   const now = new Date();
@@ -703,11 +755,10 @@ function buildTestPayload() {
   return Array.from(payload);
 }
 
-// 从打印机选择弹窗点选设备后打印
-async function pickPrinter(p: SppDevice) {
-  printerDialog.value = false;
+// 点击 BLE 设备 → 打印测试小票
+async function printBle(d: BleScanDevice) {
   try {
-    const name = await sppPrint(p, buildTestPayload());
+    const name = await blePrintTo(d.deviceId, buildTestPayload(), d.name);
     statusOk.value = true;
     status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
   } catch (e) {
@@ -716,62 +767,66 @@ async function pickPrinter(p: SppDevice) {
   }
 }
 
-// testPrinter：按环境自动选择通道 —— 原生 App 走 SPP（已配对设备）/ BLE（系统弹框），网页走 Web Bluetooth
-async function testPrinter() {
-  status.value = "";
-  printing.value = true;
+// 点击传统蓝牙设备 → 打印测试小票
+async function printSpp(d: SppDevice) {
   try {
-    if (isNative()) {
-      // 初始化 BLE（会触发 Android「附近设备」运行时权限，SPP 也依赖它）
-      try {
-        await bleInit();
-      } catch {
-        // 已初始化过或无 BLE 插件时忽略
-      }
-      const devices = await sppList();
-      if (devices.length === 1) {
-        const name = await sppPrint(devices[0]!, buildTestPayload());
-        statusOk.value = true;
-        status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
-        return;
-      }
-      if (devices.length > 1) {
-        sppDevices.value = devices;
-        printerDialog.value = true;
-        return;
-      }
-      // 无已配对经典蓝牙设备 → BLE 弹系统设备选择框
-      const name = await blePrint(buildTestPayload());
-      statusOk.value = true;
-      status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
-      return;
-    }
-
-    const name = await webBluetoothPrint(buildTestPayload());
+    const name = await sppPrint(d, buildTestPayload());
     statusOk.value = true;
-    status.value = `已连接 Web蓝牙「${name}」，测试小票已发送，请查看打印机出纸`;
+    status.value = `已连接「${name}」，测试小票已发送，请查看打印机出纸`;
   } catch (e) {
     statusOk.value = false;
     status.value = describeError(e);
-  } finally {
-    printing.value = false;
   }
 }
 
-// testWebBluetooth：不分环境，强制走 Web Bluetooth（App 内用于验证 WebView 是否提供该 API）
-async function testWebBluetooth() {
+// 开始搜索：BLE 实时回调 + 传统蓝牙 discoverUnpaired（仅未配对设备，不返回已保存的）
+async function startScan() {
   status.value = "";
-  printingWeb.value = true;
+  bleDevices.value = [];
+  sppDevices.value = [];
+  scanning.value = true;
   try {
-    const name = await webBluetoothPrint(buildTestPayload());
-    statusOk.value = true;
-    status.value = `已连接 Web蓝牙「${name}」，测试小票已发送，请查看打印机出纸`;
+    if (isNative()) {
+      // 初始化 BLE（触发 Android「附近设备」运行时权限，扫描也依赖它）
+      try {
+        await bleInit();
+      } catch {
+        // 已初始化过则忽略
+      }
+      stopBle = await bleScanStart((d) => {
+        if (!bleDevices.value.some((x) => x.deviceId === d.deviceId)) {
+          bleDevices.value.push(d);
+        }
+      });
+    } else {
+      statusOk.value = true;
+      status.value = "当前为网页环境，仅展示传统蓝牙搜索；蓝牙搜索请在 App 内使用";
+    }
+
+    // 传统蓝牙扫描（约 12 秒，结束后 resolve）
+    const found = await sppDiscover((d) => {
+      if (!sppDevices.value.some((x) => x.address === d.address)) {
+        sppDevices.value.push(d);
+      }
+    });
+    if (found.length === 0 && bleDevices.value.length === 0 && status.value === "") {
+      statusOk.value = false;
+      status.value = "未搜索到设备，请确认打印机已开机并进入配对/广播模式";
+    }
   } catch (e) {
     statusOk.value = false;
     status.value = describeError(e);
   } finally {
-    printingWeb.value = false;
+    scanning.value = false;
   }
+}
+
+// 停止搜索
+async function stopScan() {
+  scanning.value = false;
+  const fn = stopBle;
+  stopBle = null;
+  if (fn) await fn().catch(() => undefined);
 }
 
 // ================= 初始化 =================
@@ -810,5 +865,10 @@ onMounted(async () => {
     height: 100%;
     object-fit: cover;
   }
+}
+
+.scan-list {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
 }
 </style>

@@ -59,6 +59,31 @@ export function sppList(): Promise<SppDevice[]> {
   return sppCall<SppDevice[]>((ok, fail) => sppApi().list(ok, fail));
 }
 
+// 经典蓝牙搜索：扫描附近「未配对」设备（不返回已保存的设备）
+// onDevice 每发现一个新设备回调一次；扫描结束（约 12 秒）时 resolve 完整列表
+export async function sppDiscover(onDevice?: (d: SppDevice) => void): Promise<SppDevice[]> {
+  const api = sppApi();
+  const found = new Map<string, SppDevice>();
+  const emit = (raw: SppDevice) => {
+    if (!raw?.address || found.has(raw.address)) return;
+    const d: SppDevice = { address: raw.address, name: raw.name || "" };
+    found.set(d.address, d);
+    onDevice?.(d);
+  };
+  api.setDeviceDiscoveredListener(emit);
+  try {
+    const list = await sppCall<SppDevice[]>((ok, fail) => api.discoverUnpaired(ok, fail), 30000);
+    list?.forEach(emit);
+    return Array.from(found.values());
+  } finally {
+    try {
+      api.clearDeviceDiscoveredListener();
+    } catch {
+      // 忽略：部分版本无此方法
+    }
+  }
+}
+
 // 经典蓝牙打印：连接 → 写入 → 断开，返回设备名
 export async function sppPrint(device: SppDevice, payload: number[]): Promise<string> {
   const api = sppApi();
@@ -95,6 +120,10 @@ interface BleApi {
     characteristic: string;
     value: string;
   }): Promise<void>;
+  // 蓝牙搜索
+  addListener(event: string, cb: (r: any) => void): Promise<{ remove(): Promise<void> }>;
+  requestLEScan(o: Record<string, unknown>): Promise<void>;
+  stopLEScan(): Promise<void>;
 }
 
 function bleApi(): BleApi {
@@ -108,13 +137,17 @@ export function bleInit(): Promise<void> {
   return bleApi().initialize({ androidNeverForLocation: true });
 }
 
-// 原生设备选择弹窗 → 连接 → 找可写特征 → 按 MTU 分片写入，返回设备名
+// 系统设备选择弹窗 → 连接 → 打印
 export async function blePrint(payload: number[]): Promise<string> {
+  const device = await bleApi().requestDevice({}); // 弹系统设备选择框
+  return blePrintTo(device.deviceId, payload, device.name);
+}
+
+// 连接指定 BLE 设备并打印（用于搜索列表点击打印），返回设备名
+export async function blePrintTo(deviceId: string, payload: number[], name = ""): Promise<string> {
   const api = bleApi();
-  const device = await api.requestDevice({}); // 弹系统设备选择框
-  const { deviceId } = device;
+  await api.connect({ deviceId });
   try {
-    await api.connect({ deviceId });
     const { services } = await api.getServices({ deviceId });
     const target = findWritable(services);
     if (!target) throw new Error("已连接但未找到可写特征，请确认这是 BLE 小票机");
@@ -142,10 +175,41 @@ export async function blePrint(payload: number[]): Promise<string> {
         await api.writeWithoutResponse(opts);
       }
     }
-    return device.name || "未知设备";
+    return name || "未知设备";
   } finally {
     api.disconnect({ deviceId }).catch(() => undefined);
   }
+}
+
+// ================= 蓝牙搜索 =================
+export interface BleScanDevice {
+  deviceId: string;
+  name: string;
+  rssi?: number;
+}
+
+// BLE 搜索：开始扫描附近广播设备（不含已保存配对关系也能发现）
+// 返回停止函数；onDevice 每发现一个新设备回调一次
+export async function bleScanStart(onDevice: (d: BleScanDevice) => void): Promise<() => Promise<void>> {
+  const api = bleApi();
+  const seen = new Set<string>();
+  const sub = await api.addListener("onScanResult", (r: any) => {
+    const dev = r?.device ?? {};
+    const id: string = dev.deviceId ?? dev.id ?? "";
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    onDevice({ deviceId: id, name: r.localName || dev.name || "", rssi: r.rssi });
+  });
+  try {
+    await api.requestLEScan({ services: [], allowDuplicates: false, scanMode: 2 });
+  } catch (e) {
+    await sub.remove().catch(() => undefined);
+    throw e;
+  }
+  return async () => {
+    await sub.remove().catch(() => undefined);
+    await api.stopLEScan().catch(() => undefined);
+  };
 }
 
 // 找第一个具备写能力的特征

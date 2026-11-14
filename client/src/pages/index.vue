@@ -7,13 +7,9 @@
     <q-header elevated>
       <!-- 顶部导航栏菜单 -->
       <q-toolbar>
-
         <q-toolbar-title> 顶部组件</q-toolbar-title>
-
       </q-toolbar>
     </q-header>
-
-
 
     <q-page-container>
       <router-view />
@@ -34,18 +30,10 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import EssentialLink, {
-  type EssentialLinkProps
-} from "@/components/EssentialLink.vue";
 
-
-
-const leftDrawerOpen = ref(false);
 
 // 底部导航当前选中项
 const tab = ref("menu");
 
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
-}
+
 </script>
