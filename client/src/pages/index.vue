@@ -1,37 +1,44 @@
 <template>
+  <!-- 应用布局容器 排序：顶部导航栏、左侧抽屉、页面内容、底部导航栏 -->
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated>
-      <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
 
-        <q-toolbar-title> Quasar App1 </q-toolbar-title>
+    
+    <!-- 顶部导航栏 -->
+    <q-header elevated>
+      <!-- 顶部导航栏菜单 -->
+      <q-toolbar>
+        <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
+
+        <q-toolbar-title> Quasar App </q-toolbar-title>
 
         <div>Quasar v{{ $q.version }}</div>
       </q-toolbar>
     </q-header>
 
+    
+    <!-- 左侧抽屉菜单 -->
     <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
       <q-list>
         <q-item-label header> Essential Links </q-item-label>
 
-        <EssentialLink
-          v-for="link in linksList"
-          :key="link.label"
-          v-bind="link"
-        />
+        <EssentialLink v-for="link in linksList" :key="link.label" v-bind="link" />
       </q-list>
     </q-drawer>
 
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <!-- 底部导航栏 -->
+    <q-footer elevated>
+      <q-tabs v-model="tab" dense class="bg-white text-grey-7" active-color="primary" indicator-color="primary"
+        align="justify" narrow-indicator>
+        <q-tab name="home" icon="home" label="首页" />
+        <q-tab name="menu" icon="restaurant_menu" label="点餐" />
+        <q-tab name="order" icon="receipt_long" label="订单" />
+        <q-tab name="me" icon="person" label="我的" />
+      </q-tabs>
+    </q-footer>
   </q-layout>
 </template>
 
@@ -87,6 +94,9 @@ const linksList: EssentialLinkProps[] = [
 ];
 
 const leftDrawerOpen = ref(false);
+
+// 底部导航当前选中项
+const tab = ref("home");
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
