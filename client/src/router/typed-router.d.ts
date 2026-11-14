@@ -37,11 +37,35 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       Record<never, never>,
       | '//(index)'
+      | '//me'
+      | '//menu'
+      | '//order'
       | '//second'
     >,
     '//(index)': RouteRecordInfo<
       '//(index)',
       '/',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '//me': RouteRecordInfo<
+      '//me',
+      '/me',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '//menu': RouteRecordInfo<
+      '//menu',
+      '/menu',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '//order': RouteRecordInfo<
+      '//order',
+      '/order',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -77,6 +101,9 @@ declare module 'vue-router/auto-routes' {
       routes:
         | '/'
         | '//(index)'
+        | '//me'
+        | '//menu'
+        | '//order'
         | '//second'
       views:
         | 'default'
@@ -86,6 +113,30 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index/(index).vue': {
       routes:
         | '//(index)'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/index/me.vue': {
+      routes:
+        | '//me'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/index/menu.vue': {
+      routes:
+        | '//menu'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/index/order.vue': {
+      routes:
+        | '//order'
       views:
         | never
       pathParamNames:

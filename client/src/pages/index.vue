@@ -33,10 +33,10 @@
     <q-footer elevated>
       <q-tabs v-model="tab" dense class="bg-white text-grey-7" active-color="primary" indicator-color="primary"
         align="justify" narrow-indicator>
-        <q-tab name="home" icon="home" label="首页" />
-        <q-tab name="menu" icon="restaurant_menu" label="点餐" />
-        <q-tab name="order" icon="receipt_long" label="订单" />
-        <q-tab name="me" icon="person" label="我的" />
+        <q-route-tab to="/" name="home" icon="home" label="首页" />
+        <q-route-tab to="/menu" name="menu" icon="restaurant_menu" label="点餐" />
+        <q-route-tab to="/order" name="order" icon="receipt_long" label="订单" />
+        <q-route-tab to="/me" name="me" icon="person" label="我的" />
       </q-tabs>
     </q-footer>
   </q-layout>
