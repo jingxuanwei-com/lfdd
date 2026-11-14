@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-community/bluetooth-le':
+        specifier: ^8.3.0
+        version: 8.3.0(@capacitor/core@8.6.0)
       '@capacitor/android':
         specifier: ^8.6.0
         version: 8.6.0(@capacitor/core@8.6.0)
@@ -20,8 +23,16 @@ importers:
       '@capacitor/core':
         specifier: ^8.0.0
         version: 8.6.0
+      cordova-plugin-bluetooth-serial:
+        specifier: ^0.4.7
+        version: 0.4.7
 
 packages:
+
+  '@capacitor-community/bluetooth-le@8.3.0':
+    resolution: {integrity: sha512-bjI+m8mZ2AB9xIgwPu9T40QoAC7NErYt6q13zMHBzW3hIAITqQKFiElKOUsX813ItXzb81GoRqjlbSeHlKEzQg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/android@8.6.0':
     resolution: {integrity: sha512-6IJS0TCfV/F/8+324CCwYd3xL6r+TH0W7zzaxYzPz9IV3YWCNvsZDuCCPHUIBC5iASb9od827ddSJ6rz+9Pu1Q==}
@@ -89,6 +100,9 @@ packages:
   '@types/slice-ansi@4.0.0':
     resolution: {integrity: sha512-+OpjSaq85gvlZAYINyzKpLeiFkSC4EsC6IIiT6v6TLSU5k5U83fHGj9Lel8oKEXM0HqgrMVCjXPDPVICtxF7EQ==}
 
+  '@types/web-bluetooth@0.0.20':
+    resolution: {integrity: sha512-g9gZnnXVq7gM7v3tJCWV/qw7w+KeOlSHAhgF9RytFyifW6AF61hdT2ucrYhPq9hLs5JIryeupHV3qGk95dH9ow==}
+
   '@xmldom/xmldom@0.9.12':
     resolution: {integrity: sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A==}
     engines: {node: '>=14.6'}
@@ -152,6 +166,9 @@ packages:
   commander@12.1.0:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
+
+  cordova-plugin-bluetooth-serial@0.4.7:
+    resolution: {integrity: sha512-Z62yZwl77CNoTLW3SwLvvvjPGq+sA1LBsSpuvdC3LePICiJHzFu2Zi5CtGSkjmkj+qOrgHoawOeXVgjN3LrPag==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -409,6 +426,11 @@ packages:
 
 snapshots:
 
+  '@capacitor-community/bluetooth-le@8.3.0(@capacitor/core@8.6.0)':
+    dependencies:
+      '@capacitor/core': 8.6.0
+      '@types/web-bluetooth': 0.0.20
+
   '@capacitor/android@8.6.0(@capacitor/core@8.6.0)':
     dependencies:
       '@capacitor/core': 8.6.0
@@ -536,6 +558,8 @@ snapshots:
 
   '@types/slice-ansi@4.0.0': {}
 
+  '@types/web-bluetooth@0.0.20': {}
+
   '@xmldom/xmldom@0.9.12': {}
 
   ansi-regex@5.0.1: {}
@@ -581,6 +605,8 @@ snapshots:
   color-name@1.1.4: {}
 
   commander@12.1.0: {}
+
+  cordova-plugin-bluetooth-serial@0.4.7: {}
 
   cross-spawn@7.0.6:
     dependencies:
