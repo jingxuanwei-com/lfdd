@@ -81,18 +81,22 @@
       <q-tab-panels v-model="tab" animated class="bg-transparent">
         <!-- ============ 商品管理 ============ -->
         <q-tab-panel name="goods" class="q-pa-none q-pt-sm">
-          <q-toolbar class="q-px-none">
-            <q-select
-              v-model="filterMenu"
-              :options="menuFilterOptions"
-              emit-value
-              map-options
+          <!-- 分类筛选：横向点选，替代下拉框 -->
+          <div class="row no-wrap q-gutter-xs q-px-none" style="overflow-x: auto">
+            <q-btn
+              v-for="opt in menuFilterOptions"
+              :key="opt.value"
               dense
-              outlined
-              label="分类"
-              style="min-width: 160px"
+              unelevated
+              size="sm"
+              :label="opt.label"
+              :color="String(filterMenu) === String(opt.value) ? 'primary' : 'grey-3'"
+              :text-color="String(filterMenu) === String(opt.value) ? 'white' : 'grey-8'"
+              @click="setFilter(opt.value)"
             />
-            <div class="text-grey-7 text-caption q-ml-sm">拖动商品行调整顺序</div>
+          </div>
+          <q-toolbar class="q-px-none">
+            <div class="text-grey-7 text-caption">拖动商品行调整顺序</div>
             <q-space />
             <q-btn
               color="primary"
@@ -619,6 +623,14 @@ async function loadGoods() {
   } finally {
     goodsLoading.value = false;
   }
+}
+
+// 切换分类筛选
+async function setFilter(v: string | number) {
+  const val = String(v);
+  if (String(filterMenu.value) === val) return;
+  filterMenu.value = val;
+  await loadGoods();
 }
 
 // ================= 商品拖拽排序 =================
