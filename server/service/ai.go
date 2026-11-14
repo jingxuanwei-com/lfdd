@@ -23,7 +23,8 @@ import (
 // 解析返回的 JSON 数组 [{"id":"1","qty":2}] → 校验后回传命中的商品完整信息，
 // 前端据此把商品加入购物车。
 
-const matchTextMaxRunes = 200 // 点单文字长度上限（字符）
+const matchTextMaxRunes = 1000 // 点单文字长度上限（字符）
+const matchMaxQty = 500       // 单商品匹配数量上限
 
 type MatchGoodsInput struct {
 	Text string `json:"text"` // 用户自然语言点单描述，如「两杯柠檬水」
@@ -80,30 +81,34 @@ func MatchGoods(i MatchGoodsInput) (o MatchGoodsOutput, err error) {
 	}
 
 	// 2. 调大模型（OpenAI 兼容 /chat/completions）
-	system := "你是点餐匹配助手。根据用户描述从商品列表中挑选商品并给出数量。" +
+	system := "你是购物匹配助手。根据用户描述从商品列表中挑选商品并给出数量。" +
 		"只输出一个 JSON 数组，元素格式 {\"id\":\"商品id\",\"qty\":购买数量}；" +
-		"id 必须来自商品列表，qty 为 1-99 的整数；没有匹配的商品时输出 []。" +
+		"id 必须来自商品列表，qty 为 1-200 的整数；没有匹配的商品时输出 []。" +
 		"不要输出任何其他文字、解释或代码块标记。"
 	user := fmt.Sprintf("商品列表：\n%s\n用户点单：%s", list.String(), text)
 
-	content, err := chatCompletion(apiKey, system, user)
+	completion, err := chatCompletion(ChatCompletionInput{
+		APIKey: apiKey, System: system, User: user,
+	})
 	if err != nil {
 		return o, err
 	}
 
 	// 3. 解析并校验匹配结果（只回传库里真实存在的上架商品）
-	pairs, err := parseMatchJSON(content)
+	parsed, err := parseMatchJSON(ParseMatchJSONInput{Content: completion.Content})
 	if err != nil {
 		return o, errors.New("大模型返回格式异常，请重试")
 	}
+	pairs := parsed.Pairs
 
 	merged := map[int64]int{} // id → 数量（合并重复项）
 	order := []int64{}
 	for _, p := range pairs {
-		id, e := parseMatchID(p.ID)
+		idOut, e := parseMatchID(ParseMatchIDInput{Raw: p.ID})
 		if e != nil || p.Qty <= 0 {
 			continue
 		}
+		id := idOut.ID
 		g, ok := byID[id]
 		if !ok {
 			continue // 模型编造的 id 直接丢弃
@@ -112,8 +117,11 @@ func MatchGoods(i MatchGoodsInput) (o MatchGoodsOutput, err error) {
 			order = append(order, id)
 		}
 		merged[id] += p.Qty
+		if merged[id] > matchMaxQty {
+			merged[id] = matchMaxQty // 数量封顶 200
+		}
 		if g.Stock > 0 && merged[id] > g.Stock {
-			merged[id] = g.Stock // 数量封顶到库存
+			merged[id] = g.Stock // 再封顶到库存
 		}
 	}
 
@@ -130,8 +138,17 @@ func MatchGoods(i MatchGoodsInput) (o MatchGoodsOutput, err error) {
 	return o, nil
 }
 
+type ChatCompletionInput struct {
+	APIKey string `json:"api_key"` // 大模型 API Key
+	System string `json:"system"`  // system 提示词
+	User   string `json:"user"`    // user 消息内容
+}
+type ChatCompletionOutput struct {
+	Content string `json:"content"` // 首个 choice 的 content
+}
+
 // chatCompletion 调 OpenAI 兼容的 chat/completions，返回首个 choice 的 content
-func chatCompletion(apiKey, system, user string) (string, error) {
+func chatCompletion(i ChatCompletionInput) (o ChatCompletionOutput, err error) {
 	baseURL := env.Get("LFDD_AI_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://api.deepseek.com/v1"
@@ -145,8 +162,8 @@ func chatCompletion(apiKey, system, user string) (string, error) {
 		"model":       model,
 		"temperature": 0,
 		"messages": []map[string]string{
-			{"role": "system", "content": system},
-			{"role": "user", "content": user},
+			{"role": "system", "content": i.System},
+			{"role": "user", "content": i.User},
 		},
 	})
 
@@ -156,20 +173,20 @@ func chatCompletion(apiKey, system, user string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		strings.TrimRight(baseURL, "/")+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return o, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+i.APIKey)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", errors.New("大模型请求失败，请检查网络")
+		return o, errors.New("大模型请求失败，请检查网络")
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 上限 1MB
 	if err != nil {
-		return "", err
+		return o, err
 	}
 
 	var out struct {
@@ -183,23 +200,31 @@ func chatCompletion(apiKey, system, user string) (string, error) {
 		} `json:"error"`
 	}
 	if err = json.Unmarshal(data, &out); err != nil {
-		return "", errors.New("大模型响应解析失败")
+		return o, errors.New("大模型响应解析失败")
 	}
 	if out.Error != nil {
-		return "", fmt.Errorf("大模型错误: %s", out.Error.Message)
+		return o, fmt.Errorf("大模型错误: %s", out.Error.Message)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("大模型请求失败（%d）", resp.StatusCode)
+		return o, fmt.Errorf("大模型请求失败（%d）", resp.StatusCode)
 	}
 	if len(out.Choices) == 0 {
-		return "", errors.New("大模型未返回内容")
+		return o, errors.New("大模型未返回内容")
 	}
-	return out.Choices[0].Message.Content, nil
+	o.Content = out.Choices[0].Message.Content
+	return o, nil
+}
+
+type ParseMatchJSONInput struct {
+	Content string `json:"content"` // 大模型返回的原始文本
+}
+type ParseMatchJSONOutput struct {
+	Pairs []matchPair `json:"pairs"` // 解析出的匹配项数组
 }
 
 // parseMatchJSON 解析模型输出为匹配项数组（容忍代码块包裹/前后杂散文字）
-func parseMatchJSON(content string) ([]matchPair, error) {
-	s := strings.TrimSpace(content)
+func parseMatchJSON(i ParseMatchJSONInput) (o ParseMatchJSONOutput, err error) {
+	s := strings.TrimSpace(i.Content)
 	if m := fenceRe.FindStringSubmatch(s); m != nil {
 		s = strings.TrimSpace(m[1])
 	}
@@ -210,21 +235,27 @@ func parseMatchJSON(content string) ([]matchPair, error) {
 		}
 	}
 	var pairs []matchPair
-	if err := json.Unmarshal([]byte(s), &pairs); err != nil {
-		return nil, err
+	if err = json.Unmarshal([]byte(s), &pairs); err != nil {
+		return o, err
 	}
-	return pairs, nil
+	o.Pairs = pairs
+	return o, nil
+}
+
+type ParseMatchIDInput struct {
+	Raw json.RawMessage `json:"raw"` // 模型返回的 id（可能是字符串或数字）
+}
+type ParseMatchIDOutput struct {
+	ID int64 `json:"id,string"` // 解析出的商品 id
 }
 
 // parseMatchID 兼容模型把 id 输出成字符串 "1" 或数字 1
-func parseMatchID(raw json.RawMessage) (int64, error) {
+func parseMatchID(i ParseMatchIDInput) (o ParseMatchIDOutput, err error) {
 	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		var id int64
-		_, e := fmt.Sscanf(s, "%d", &id)
-		return id, e
+	if e := json.Unmarshal(i.Raw, &s); e == nil {
+		_, e = fmt.Sscanf(s, "%d", &o.ID)
+		return o, e
 	}
-	var id int64
-	err := json.Unmarshal(raw, &id)
-	return id, err
+	err = json.Unmarshal(i.Raw, &o.ID)
+	return o, err
 }

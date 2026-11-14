@@ -24,12 +24,19 @@ var imageNameRe = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 const maxImageSize = 5 << 20 // 5MB
 
-func uploadDir() string {
+type UploadDirInput struct{}
+type UploadDirOutput struct {
+	Dir string `json:"dir"` // 图片存储目录
+}
+
+// uploadDir 图片存储目录（LFDD_UPLOAD_PATH，空则 data/upload）
+func uploadDir(i UploadDirInput) (o UploadDirOutput, err error) {
 	dir := env.Get("LFDD_UPLOAD_PATH")
 	if dir == "" {
 		dir = "data/upload"
 	}
-	return dir
+	o.Dir = dir
+	return o, nil
 }
 
 type UploadImageInput struct {
@@ -70,12 +77,16 @@ func UploadImage(i UploadImageInput) (o UploadImageOutput, err error) {
 	sum := sha256.Sum256(data)
 	o.Hash = hex.EncodeToString(sum[:])
 
-	if err = os.MkdirAll(uploadDir(), 0o755); err != nil {
+	dirOut, e := uploadDir(UploadDirInput{})
+	if e != nil {
+		return o, e
+	}
+	if err = os.MkdirAll(dirOut.Dir, 0o755); err != nil {
 		return o, err
 	}
 
 	// 同内容文件已存在则跳过写入（哈希去重）
-	dst := filepath.Join(uploadDir(), o.Hash)
+	dst := filepath.Join(dirOut.Dir, o.Hash)
 	if _, err = os.Stat(dst); os.IsNotExist(err) {
 		if err = os.WriteFile(dst, data, 0o644); err != nil {
 			return o, err
@@ -98,7 +109,11 @@ func GetUploadImage(i GetUploadImageInput) (o GetUploadImageOutput, err error) {
 	if !imageNameRe.MatchString(i.Name) {
 		return o, errors.New("非法图片文件名")
 	}
-	path := filepath.Join(uploadDir(), i.Name)
+	dirOut, e := uploadDir(UploadDirInput{})
+	if e != nil {
+		return o, e
+	}
+	path := filepath.Join(dirOut.Dir, i.Name)
 	f, err := os.Open(path)
 	if err != nil {
 		return o, errors.New("图片不存在")

@@ -143,7 +143,7 @@ func CreateGoods(i CreateGoodsInput) (o CreateGoodsOutput, err error) {
 	if i.Status != 0 && i.Status != 1 {
 		return o, errors.New("上架状态只能是 0 或 1")
 	}
-	if err = checkMenuExists(i.MenuID); err != nil {
+	if _, err = checkMenuExists(CheckMenuExistsInput{MenuID: i.MenuID}); err != nil {
 		return o, err
 	}
 
@@ -186,7 +186,7 @@ func UpdateGoods(i UpdateGoodsInput) (o UpdateGoodsOutput, err error) {
 	if i.Status != 0 && i.Status != 1 {
 		return o, errors.New("上架状态只能是 0 或 1")
 	}
-	if err = checkMenuExists(i.MenuID); err != nil {
+	if _, err = checkMenuExists(CheckMenuExistsInput{MenuID: i.MenuID}); err != nil {
 		return o, err
 	}
 
@@ -258,14 +258,19 @@ func SortGoods(i SortGoodsInput) (o SortGoodsOutput, err error) {
 	return o, err
 }
 
+type CheckMenuExistsInput struct {
+	MenuID int64 `json:"menu_id,string"` // 待校验的菜单 ID
+}
+type CheckMenuExistsOutput struct{}
+
 // checkMenuExists 校验菜单存在（商品必须挂在有效菜单下）
-func checkMenuExists(menuID int64) error {
+func checkMenuExists(i CheckMenuExistsInput) (o CheckMenuExistsOutput, err error) {
 	var count int64
-	if err := db.DB.Model(&model.Menu{}).Where("id = ?", menuID).Count(&count).Error; err != nil {
-		return err
+	if err = db.DB.Model(&model.Menu{}).Where("id = ?", i.MenuID).Count(&count).Error; err != nil {
+		return o, err
 	}
 	if count == 0 {
-		return errors.New("所属菜单不存在")
+		return o, errors.New("所属菜单不存在")
 	}
-	return nil
+	return o, nil
 }
