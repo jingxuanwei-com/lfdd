@@ -2,7 +2,7 @@
 chcp 65001 >nul
 
 :: 切换到当前批处理文件所在的目录
-cd app
+cd client
 
 :: 使用 call 强制批处理等待命令执行，防止直接闪退
 call pnpm quasar dev -m spa
@@ -11,5 +11,6 @@ call pnpm quasar dev -m spa
 :: call pnpm quasar dev -m spa
 :: call pnpm quasar dev -m ssr
 :: call pnpm quasar dev -m electron
+:: call pnpm quasar dev -m capacitor -T [android|ios]
 
 pause
