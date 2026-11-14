@@ -804,20 +804,30 @@ async function startScan() {
     }
 
     // 传统蓝牙扫描（约 12 秒，结束后 resolve）
-    const found = await sppDiscover((d) => {
-      if (!sppDevices.value.some((x) => x.address === d.address)) {
-        sppDevices.value.push(d);
+    // 单独 catch：权限被拒等错误只影响传统蓝牙一列，不打断 BLE 搜索
+    try {
+      const found = await sppDiscover((d) => {
+        if (!sppDevices.value.some((x) => x.address === d.address)) {
+          sppDevices.value.push(d);
+        }
+      });
+      if (found.length === 0 && bleDevices.value.length === 0 && status.value === "") {
+        statusOk.value = false;
+        status.value = "未搜索到设备，请确认打印机已开机并进入配对/广播模式";
       }
-    });
-    if (found.length === 0 && bleDevices.value.length === 0 && status.value === "") {
+    } catch (e) {
+      const msg = describeError(e);
       statusOk.value = false;
-      status.value = "未搜索到设备，请确认打印机已开机并进入配对/广播模式";
+      status.value = msg.includes("Location permission")
+        ? "搜索传统蓝牙需要位置权限：请在系统设置 → 应用 → 权限中允许「位置」后重试（低功耗蓝牙不受影响）"
+        : `传统蓝牙搜索失败：${msg}`;
     }
   } catch (e) {
     statusOk.value = false;
     status.value = describeError(e);
   } finally {
     scanning.value = false;
+    // BLE 扫描由插件持续进行，直到点「停止」或离开页面
   }
 }
 
