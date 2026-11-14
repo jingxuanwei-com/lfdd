@@ -89,6 +89,7 @@ export default defineConfig(ctx => {
       open: true, // opens browser window automatically
       // 服务端无 CORS 中间件，开发时将 /api 代理到后端（自签证书需 secure: false）
       proxy: {
+        // API + 图片直出（/api/upload/{hash}）统一代理到后端（自签证书需 secure: false）
         "/api": {
           target: "https://localhost:9081",
           changeOrigin: true,

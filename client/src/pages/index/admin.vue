@@ -130,7 +130,7 @@
             >
               <q-item-section avatar>
                 <div class="goods-thumb">
-                  <img v-if="g.image" :src="g.image" :alt="g.name" />
+                  <img v-if="g.image" :src="imgSrc(g.image)" :alt="g.name" />
                   <q-icon v-else name="shopping_bag" size="22px" color="grey-5" />
                 </div>
               </q-item-section>
@@ -340,15 +340,37 @@
               dense
               hint="-1 = 不限库存，0 = 售罄"
             />
-            <q-input v-model="goodsForm.image" label="图片地址（URL，可空）" outlined dense />
+            <!-- 图片：选择文件即上传（哈希命名），image 字段只存哈希 -->
+            <q-file
+              v-model="goodsImageFile"
+              outlined
+              dense
+              label="上传图片（可空，jpg/png/gif/webp，≤5MB）"
+              accept="image/*"
+              :loading="imgUploading"
+              @update:model-value="uploadGoodsImage"
+            >
+              <template #prepend>
+                <q-icon name="upload" />
+              </template>
+            </q-file>
             <div v-if="goodsForm.image" class="row items-center q-gutter-sm">
               <img
-                :src="goodsForm.image"
+                :src="imgSrc(goodsForm.image)"
                 class="goods-thumb"
                 style="width: 48px; height: 48px"
                 alt=""
               />
               <span class="text-caption text-grey-6">预览</span>
+              <q-btn
+                flat
+                dense
+                size="sm"
+                color="negative"
+                icon="close"
+                label="移除"
+                @click="goodsForm.image = ''"
+              />
             </div>
             <q-toggle v-model="goodsForm.statusOn" label="上架销售" color="positive" />
           </q-card-section>
@@ -613,6 +635,44 @@ const goodsForm = reactive({
   sort: 0
 });
 
+// 图片上传：选择文件即传给后端（内容哈希命名），成功后把返回哈希填进 goodsForm.image
+const goodsImageFile = ref<File | null>(null);
+const imgUploading = ref(false);
+
+// image 字段只存哈希，展示时拼成 /api/upload/{hash}（兼容旧数据里的完整 URL/路径）
+function imgSrc(v: string): string {
+  if (!v) return "";
+  if (v.startsWith("/") || /^https?:\/\//.test(v)) return v;
+  return `/api/upload/${v}`;
+}
+
+async function uploadGoodsImage(f: unknown) {
+  if (!f) return;
+  imgUploading.value = true;
+  try {
+    const fd = new FormData();
+    fd.append("file", f as File);
+    const res = await fetch("/api/goods/upload", {
+      method: "POST",
+      ...(token.value ? { headers: { Authorization: `Bearer ${token.value}` } } : {}),
+      body: fd
+    });
+    if (res.status === 401) {
+      token.value = "";
+      localStorage.removeItem(TOKEN_KEY);
+      throw new Error("登录已过期，请重新登录");
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `上传失败（${res.status}）`);
+    goodsForm.image = data.hash;
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    imgUploading.value = false;
+    goodsImageFile.value = null; // 清掉以便再次选同一文件也能触发
+  }
+}
+
 async function loadGoods() {
   goodsLoading.value = true;
   try {
@@ -689,6 +749,7 @@ function openGoods(g?: AdminGoods) {
     goodsForm.statusOn = true;
     goodsForm.sort = 0;
   }
+  goodsImageFile.value = null;
   goodsDlg.value = true;
 }
 

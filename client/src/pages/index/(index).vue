@@ -38,7 +38,7 @@
         <template v-else>
           <div v-for="g in goods" :key="g.id" class="goods-card">
             <div class="goods-img">
-              <img v-if="g.image" :src="g.image" :alt="g.name" />
+              <img v-if="g.image" :src="imgSrc(g.image)" :alt="g.name" />
               <q-icon v-else name="shopping_bag" size="32px" color="grey-5" />
               <div v-if="g.stock === 0" class="sold-out">售罄</div>
             </div>
@@ -130,6 +130,13 @@ function pageStyle(offset: number, height: number) {
 
 function fmtPrice(price: number) {
   return (price / 100).toFixed(2);
+}
+
+// image 字段只存哈希，展示时拼成 /api/upload/{hash}（兼容旧数据里的完整 URL/路径）
+function imgSrc(v: string): string {
+  if (!v) return "";
+  if (v.startsWith("/") || /^https?:\/\//.test(v)) return v;
+  return `/api/upload/${v}`;
 }
 
 function describeError(e: unknown) {
