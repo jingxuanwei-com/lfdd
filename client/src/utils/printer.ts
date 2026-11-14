@@ -93,10 +93,7 @@ function padStartW(s: string, width: number): string {
 // 组装订单小票：初始化 + 居中放大标题 + 单号/时间 + 明细 + 合计 + 走纸切纸
 export function buildOrderPayload(o: ReceiptOrder): number[] {
   const lines: string[] = [
-    "订单小票",
-    "--------------------------------",
-    `单号 ${o.orderNo}`,
-    `时间 ${o.createdAt}`,
+    `${o.orderNo}`,
     "--------------------------------"
   ];
   for (const it of o.items) {
