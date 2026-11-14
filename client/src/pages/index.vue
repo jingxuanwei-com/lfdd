@@ -6,9 +6,7 @@
     <!-- 顶部导航栏 -->
     <q-header elevated>
       <!-- 顶部导航栏菜单 -->
-      <q-toolbar>
-        <q-toolbar-title> 顶部组件</q-toolbar-title>
-      </q-toolbar>
+
     </q-header>
 
     <q-page-container>

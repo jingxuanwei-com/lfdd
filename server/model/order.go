@@ -16,6 +16,9 @@ type Order struct {
 	// 商品总件数
 	Count int `json:"count" gorm:"not null;default:0"`
 
+	// 状态：0 = 待结单（价格未锁定）、1 = 已结单（价格已锁定）
+	Status int8 `json:"status" gorm:"not null;default:0"`
+
 	// 创建/更新时间，由 gorm 自动维护
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -26,7 +29,7 @@ func (Order) TableName() string {
 	return "orders"
 }
 
-// OrderItem 订单明细：下单时的商品快照（名称/价格/图片按下单时刻记录）
+// OrderItem 订单明细：下单时记录名称/规格/图片快照，价格在「结单」时才按当时价锁定回填
 type OrderItem struct {
 	// 自增主键
 	ID int64 `json:"id,string" gorm:"primaryKey;autoIncrement"`
@@ -34,13 +37,13 @@ type OrderItem struct {
 	// 所属订单（order.id），普通索引
 	OrderID int64 `json:"order_id,string" gorm:"not null;index"`
 
-	// 商品 ID（goods.id），仅作追溯，商品改价/改名不影响本单
+	// 商品 ID（goods.id），结单时按它取当前价
 	GoodsID int64 `json:"goods_id,string" gorm:"not null"`
 
 	// 商品名称快照
 	Name string `json:"name" gorm:"size:64;not null"`
 
-	// 下单时单价，单位：分
+	// 单价，单位：分；下单时为 0，结单时按当时价回填并锁定
 	Price int `json:"price" gorm:"not null;default:0"`
 
 	// 规格快照

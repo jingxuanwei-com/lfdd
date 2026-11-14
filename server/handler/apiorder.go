@@ -9,8 +9,8 @@ import (
 type ApiOrderHandler struct {
 }
 
-// Create 创建订单（购物车结算）：按库中价格结算并扣库存
-// body: {"items":[{"id":"101","qty":2}]} → {"id":"1","order_no":"20261114120000123456","total":3700}
+// Create 创建订单（购物车下单）：不记录价格、扣库存，明细价格待结单锁定
+// body: {"items":[{"id":"101","qty":2}]} → {"id":"1","order_no":"20261114120000123456"}
 func (h *ApiOrderHandler) Create(c *gin.Context) {
 	var req service.CreateOrderInput
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -21,6 +21,28 @@ func (h *ApiOrderHandler) Create(c *gin.Context) {
 	}
 
 	out, err := service.CreateOrder(req)
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
+
+// Finish 结单：按当前价锁定本单明细并合计，只能结一次
+// body: {"id":"1"} → {"total":3700,"count":2}
+func (h *ApiOrderHandler) Finish(c *gin.Context) {
+	var req service.FinishOrderInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.FinishOrder(req)
 	if err != nil {
 		c.JSON(400, gin.H{
 			"message": err.Error(),

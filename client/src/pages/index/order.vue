@@ -25,11 +25,23 @@
             <div class="text-caption text-grey-6">{{ o.created_at }}</div>
           </div>
           <q-btn
+            v-if="o.status === 0"
+            color="orange"
+            icon="payments"
+            label="结单"
+            unelevated
+            size="sm"
+            :loading="finishingId === o.id"
+            @click="finishOrder(o)"
+          />
+          <q-btn
+            v-else
             color="primary"
             icon="print"
             label="打印"
             unelevated
             size="sm"
+            :loading="printingId === o.id"
             @click="openPrint(o)"
           />
         </div>
@@ -45,7 +57,22 @@
               <div v-if="it.spec" class="text-caption text-grey-6 ellipsis">{{ it.spec }}</div>
             </div>
             <div class="text-caption text-grey-7">x{{ it.qty }}</div>
-            <div class="text-caption text-weight-medium" style="min-width: 64px; text-align: right">
+            <q-chip
+              v-if="o.status === 0"
+              dense
+              size="xs"
+              flat
+              color="grey-5"
+              text-color="white"
+              class="q-ma-none"
+            >
+              待结
+            </q-chip>
+            <div
+              v-else
+              class="text-caption text-weight-medium"
+              style="min-width: 64px; text-align: right"
+            >
               ¥{{ fmtPrice(it.price * it.qty) }}
             </div>
           </div>
@@ -53,7 +80,10 @@
 
         <div class="row items-center justify-end q-gutter-sm q-mt-sm">
           <span class="text-caption text-grey-7">共 {{ o.count }} 件</span>
-          <span class="text-caption text-weight-bold text-negative">合计 ¥{{ fmtPrice(o.total) }}</span>
+          <q-chip v-if="o.status === 0" color="orange" text-color="white" dense size="sm" class="q-ma-none">
+            待结单
+          </q-chip>
+          <span v-else class="text-caption text-weight-bold text-negative">合计 ¥{{ fmtPrice(o.total) }}</span>
         </div>
       </div>
 
@@ -159,8 +189,9 @@ interface OrderItem {
 interface Order {
   id: string;
   order_no: string;
-  total: number; // 合计，分
+  total: number; // 合计，分（待结单时为 0）
   count: number;
+  status: number; // 0 待结单、1 已结单
   created_at: string;
   items: OrderItem[];
 }
@@ -217,6 +248,29 @@ async function loadOrders(reset: boolean) {
   }
 }
 
+const finishingId = ref<string | null>(null); // 结单中的订单
+
+// 结单：按当前价锁定本单价格，成功后刷新列表（锁价结果从后端重取）
+async function finishOrder(o: Order) {
+  if (finishingId.value) return;
+  finishingId.value = o.id;
+  try {
+    const res = await fetch("/api/order/finish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: o.id })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `结单失败（${res.status}）`);
+    $q.notify({ message: `结单成功，合计 ¥${fmtPrice(data.total)}`, color: "positive" });
+    await loadOrders(true);
+  } catch (e) {
+    $q.notify({ message: describeErrorLocal(e), color: "negative" });
+  } finally {
+    finishingId.value = null;
+  }
+}
+
 // ================= 打印小票 =================
 const printDlg = ref(false);
 const printOrder = ref<Order | null>(null);
@@ -225,6 +279,7 @@ const loadingSpp = ref(false);
 const sppDevices = ref<SppDevice[]>([]);
 const printStatus = ref("");
 const printStatusOk = ref(false);
+const printingId = ref<string | null>(null);
 
 function openPrint(o: Order) {
   printOrder.value = o;
@@ -247,6 +302,7 @@ function toReceipt(o: Order): ReceiptOrder {
 async function printBle() {
   if (!printOrder.value || printing.value) return;
   printing.value = true;
+  printingId.value = printOrder.value.id;
   try {
     if (isNative()) {
       try {
@@ -264,6 +320,7 @@ async function printBle() {
     printStatus.value = describeError(e);
   } finally {
     printing.value = false;
+    printingId.value = null;
   }
 }
 
@@ -285,6 +342,7 @@ async function loadSppDevices() {
 async function printSpp(d: SppDevice) {
   if (!printOrder.value || printing.value) return;
   printing.value = true;
+  printingId.value = printOrder.value.id;
   try {
     const payload = buildOrderPayload(toReceipt(printOrder.value));
     const name = await sppPrint(d, payload);
@@ -295,6 +353,7 @@ async function printSpp(d: SppDevice) {
     printStatus.value = describeError(e);
   } finally {
     printing.value = false;
+    printingId.value = null;
   }
 }
 

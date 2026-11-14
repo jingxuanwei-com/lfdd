@@ -81,7 +81,7 @@ func MatchGoods(i MatchGoodsInput) (o MatchGoodsOutput, err error) {
 	}
 
 	// 2. 调大模型（OpenAI 兼容 /chat/completions）
-	system := "你是购物匹配助手。根据用户描述从商品列表中挑选商品并给出数量。" +
+	system := "你是购物匹配助手。根据用户描述从商品列表中模糊匹配挑选商品并给出数量。" +
 		"只输出一个 JSON 数组，元素格式 {\"id\":\"商品id\",\"qty\":购买数量}；" +
 		"id 必须来自商品列表，qty 为 1-200 的整数；没有匹配的商品时输出 []。" +
 		"不要输出任何其他文字、解释或代码块标记。"

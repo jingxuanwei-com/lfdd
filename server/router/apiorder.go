@@ -11,5 +11,6 @@ func apiOrderRouter() {
 	apiOrderHandler := &handler.ApiOrderHandler{}
 	group := web.Engine.Group("/api/order")
 	group.POST("/create", middleware.OptionalGuard(), apiOrderHandler.Create)
+	group.POST("/finish", middleware.OptionalGuard(), apiOrderHandler.Finish)
 	group.GET("/page", middleware.OptionalGuard(), apiOrderHandler.Page)
 }

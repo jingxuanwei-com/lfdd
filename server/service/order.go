@@ -23,11 +23,10 @@ type CreateOrderInput struct {
 type CreateOrderOutput struct {
 	ID      int64  `json:"id,string"`
 	OrderNo string `json:"order_no"` // 订单号（打印小票用）
-	Total   int    `json:"total"`    // 合计，单位：分
 }
 
-// CreateOrder 下单：价格一律按库中当前价结算（不信任前端传价），
-// 校验上架/库存，并在事务中扣减库存、写订单与明细快照
+// CreateOrder 下单：只记录商品/数量快照，不记录价格（价格待结单时锁定），
+// 校验上架/库存，并在事务中扣减库存、写订单与明细（明细 price=0，订单 total=0、status=0）
 func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 	if len(i.Items) == 0 {
 		return o, errors.New("购物车是空的")
@@ -49,7 +48,7 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 		}
 	}
 
-	// 2. 取上架商品（价格以库中为准）
+	// 2. 取上架商品（只校验上架与库存，不算价格）
 	var goods []model.Goods
 	if err = db.DB.Where("id IN ? AND status = ?", ids, 1).Find(&goods).Error; err != nil {
 		return o, err
@@ -59,7 +58,7 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 		byID[g.ID] = g
 	}
 
-	total, count := 0, 0
+	count := 0
 	for _, id := range ids {
 		g, ok := byID[id]
 		if !ok {
@@ -69,12 +68,10 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 		if g.Stock > 0 && qty > g.Stock {
 			return o, fmt.Errorf("「%s」库存不足（剩 %d）", g.Name, g.Stock)
 		}
-		total += g.Price * qty
 		count += qty
 	}
 
-	// 3. 事务：扣库存 → 建订单 → 写明细快照
-	o.Total = total
+	// 3. 事务：扣库存 → 建订单（待结单）→ 写明细（价格留空待结单回填）
 	o.OrderNo = time.Now().Format("20060102150405") + fmt.Sprintf("%06d", rand.Intn(1e6))
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		for _, id := range ids {
@@ -93,7 +90,7 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 			}
 		}
 
-		ord := model.Order{OrderNo: o.OrderNo, Total: total, Count: count}
+		ord := model.Order{OrderNo: o.OrderNo, Count: count, Status: 0}
 		if e := tx.Create(&ord).Error; e != nil {
 			return e
 		}
@@ -102,7 +99,7 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 			g, qty := byID[id], qtyByID[id]
 			items = append(items, model.OrderItem{
 				OrderID: ord.ID, GoodsID: g.ID, Name: g.Name,
-				Price: g.Price, Spec: g.Spec, Qty: qty, Image: g.Image,
+				Spec: g.Spec, Qty: qty, Image: g.Image, // Price 留 0，结单时回填
 			})
 		}
 		if e := tx.Create(&items).Error; e != nil {
@@ -114,6 +111,89 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 	if err != nil {
 		return o, err
 	}
+	return o, nil
+}
+
+// ------------------------ FinishOrder 结单（锁定价格） ------------------------
+
+type FinishOrderInput struct {
+	ID int64 `json:"id,string"` // 订单 ID
+}
+type FinishOrderOutput struct {
+	Total int `json:"total"` // 锁定后的合计，分
+	Count int `json:"count"` // 商品总件数
+}
+
+// FinishOrder 结单：按库中当前价锁定本单全部明细，合计回写订单并置为已结单。
+// 只能结一次（status=0 才允许，事务内防并发重复结单）；之后商品再改价不影响本单。
+func FinishOrder(i FinishOrderInput) (o FinishOrderOutput, err error) {
+	// 1. 查订单（仅待结单可结）
+	var ord model.Order
+	if err = db.DB.First(&ord, i.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return o, errors.New("订单不存在")
+		}
+		return o, err
+	}
+	if ord.Status != 0 {
+		return o, errors.New("该订单已结单")
+	}
+
+	// 2. 查明细与当前商品价
+	var items []model.OrderItem
+	if err = db.DB.Where("order_id = ?", ord.ID).Order("id ASC").Find(&items).Error; err != nil {
+		return o, err
+	}
+	if len(items) == 0 {
+		return o, errors.New("订单没有明细")
+	}
+	ids := make([]int64, 0, len(items))
+	for _, it := range items {
+		ids = append(ids, it.GoodsID)
+	}
+	var goods []model.Goods
+	if err = db.DB.Where("id IN ?", ids).Find(&goods).Error; err != nil {
+		return o, err
+	}
+	byID := make(map[int64]model.Goods, len(goods))
+	for _, g := range goods {
+		byID[g.ID] = g
+	}
+
+	total := 0
+	for _, it := range items {
+		g, ok := byID[it.GoodsID]
+		if !ok {
+			return o, fmt.Errorf("「%s」已删除，无法结单", it.Name)
+		}
+		total += g.Price * it.Qty
+	}
+
+	// 3. 事务：回填明细价 → 合计与状态一次更新
+	err = db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, it := range items {
+			g := byID[it.GoodsID]
+			if e := tx.Model(&model.OrderItem{}).Where("id = ?", it.ID).
+				Update("price", g.Price).Error; e != nil {
+				return e
+			}
+		}
+		res := tx.Model(&model.Order{}).Where("id = ? AND status = ?", ord.ID, 0).
+			Updates(map[string]any{"total": total, "status": 1})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return errors.New("该订单已结单")
+		}
+		return nil
+	})
+	if err != nil {
+		return o, err
+	}
+
+	o.Total = total
+	o.Count = ord.Count
 	return o, nil
 }
 
@@ -134,8 +214,9 @@ type OrderItemView struct {
 type OrderView struct {
 	ID        int64           `json:"id,string"`
 	OrderNo   string          `json:"order_no"`
-	Total     int             `json:"total"` // 合计，分
-	Count     int             `json:"count"` // 商品总件数
+	Total     int             `json:"total"`   // 合计，分（待结单时为 0）
+	Count     int             `json:"count"`   // 商品总件数
+	Status    int8            `json:"status"`  // 0 待结单、1 已结单
 	CreatedAt string          `json:"created_at"`
 	Items     []OrderItemView `json:"items"`
 }
@@ -201,6 +282,7 @@ func GetOrders(i GetOrdersInput) (o GetOrdersOutput, err error) {
 			OrderNo:   ord.OrderNo,
 			Total:     ord.Total,
 			Count:     ord.Count,
+			Status:    ord.Status,
 			CreatedAt: ord.CreatedAt.Format("2006-01-02 15:04:05"),
 			Items:     list,
 		})
