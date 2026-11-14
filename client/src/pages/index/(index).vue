@@ -99,93 +99,25 @@
       </div>
     </div>
 
-    <!-- 底部悬浮购物车条：合计实时计算，点按展开明细列表 -->
-    <div v-if="cartCount > 0 || cartOpen" class="cart-dock">
-      <!-- 明细列表（展开态） -->
-      <div v-if="cartOpen" class="cart-panel">
-        <div class="row items-center justify-between q-mb-xs">
-          <span class="text-subtitle2">购物车</span>
-          <q-btn flat dense size="sm" color="negative" label="清空" @click="clearCart" />
-        </div>
-        <div v-if="cart.length === 0" class="text-caption text-grey-6 q-pa-md text-center">
-          购物车是空的
-        </div>
-        <div v-for="line in cart" :key="line.id" class="cart-line row items-center">
-          <div class="col ellipsis">
-            <div class="text-caption ellipsis">{{ line.name }}</div>
-            <div class="text-negative text-weight-bold text-caption">
-              ¥{{ fmtPrice(line.price) }}
-            </div>
-          </div>
-          <div class="row items-center q-gutter-xs">
-            <q-btn
-              round
-              dense
-              size="sm"
-              color="primary"
-              icon="remove"
-              aria-label="减少"
-              @click="changeQty(line, -1)"
-            />
-            <span class="qty-num text-weight-medium">{{ line.qty }}</span>
-            <q-btn
-              round
-              dense
-              size="sm"
-              color="primary"
-              icon="add"
-              aria-label="增加"
-              @click="changeQty(line, 1)"
-            />
-          </div>
-          <div
-            class="text-negative text-weight-bold text-caption"
-            style="min-width: 60px; text-align: right"
-          >
-            ¥{{ fmtPrice(line.price * line.qty) }}
-          </div>
-        </div>
-        <q-separator class="q-my-sm" />
-        <div class="row items-center justify-between">
-          <span class="text-caption text-grey-7">共 {{ cartCount }} 件</span>
-          <span>
-            合计
-            <b class="text-negative text-h6">¥{{ fmtPrice(cartTotal) }}</b>
-          </span>
-        </div>
-      </div>
-
-      <!-- 悬浮条 -->
-      <div class="cart-bar row items-center" @click="cartOpen = !cartOpen">
+    <!-- 底部悬浮购物车入口：合计实时计算，点击进购物车页看明细/图片 -->
+    <div v-if="cartCount > 0" class="cart-dock">
+      <div class="cart-bar row items-center" @click="goCart">
         <div class="relative-position">
           <q-icon name="shopping_cart" size="26px" />
-          <q-badge v-if="cartCount" floating color="red" :label="cartCount" />
+          <q-badge floating color="red" :label="cartCount" />
         </div>
         <div class="col q-ml-sm">
           <div class="text-caption" style="line-height: 1">合计</div>
           <div class="text-weight-bold" style="line-height: 1.2">¥{{ fmtPrice(cartTotal) }}</div>
         </div>
         <q-space />
-        <q-icon :name="cartOpen ? 'expand_more' : 'expand_less'" size="22px" />
+        <q-icon name="chevron_right" size="22px" />
       </div>
     </div>
   </q-page>
 </template>
 
 <script lang="ts">
-import { ref } from "vue";
-
-// 购物车行（模块级：跨路由切换保留，切到后台/订单再回来不丢）
-interface CartLine {
-  id: string;
-  name: string;
-  price: number; // 单位：分
-  stock: number; // -1 不限，0 售罄
-  qty: number;
-}
-const cart = ref<CartLine[]>([]);
-const cartOpen = ref(false);
-
 // 模块级：跨路由切换保留的商品页位置（组件卸载后仍然存在）
 // 切到购物车/订单/后台再切回来时，恢复分类和两栏滚动位置
 const pagePos = {
@@ -196,8 +128,17 @@ const pagePos = {
 </script>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted } from "vue";
-// ref 由上方 <script> 块导入，两个 script 块共享同一模块作用域
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import {
+  cartCount,
+  cartTotal,
+  changeQty,
+  fmtPrice,
+  imgSrc,
+  lineQty
+} from "../../utils/cart";
+// 购物车数据在 utils/cart.ts（模块级共享，购物车页同用一份）
 
 // 与后端 service 对齐的接口返回结构
 interface SidebarMenu {
@@ -242,50 +183,14 @@ function pageStyle(offset: number, height: number) {
   return { height: offset !== 0 ? `calc(100vh - ${offset}px)` : "100vh" };
 }
 
-function fmtPrice(price: number) {
-  return (price / 100).toFixed(2);
-}
-
-// image 字段只存哈希，展示时拼成 /api/upload/{hash}（兼容旧数据里的完整 URL/路径）
-function imgSrc(v: string): string {
-  if (!v) return "";
-  if (v.startsWith("/") || /^https?:\/\//.test(v)) return v;
-  return `/api/upload/${v}`;
-}
-
 function describeError(e: unknown) {
   return e instanceof Error ? e.message : String(e);
 }
 
-// ================= 购物车（纯前端计算） =================
-const cartCount = computed(() => cart.value.reduce((s, l) => s + l.qty, 0));
-const cartTotal = computed(() => cart.value.reduce((s, l) => s + l.price * l.qty, 0));
+const router = useRouter();
 
-function lineQty(id: string): number {
-  return cart.value.find((l) => l.id === id)?.qty ?? 0;
-}
-
-// 增减数量：delta=1 加，-1 减；受库存限制（stock=-1 不限），减到 0 自动移出行
-function changeQty(item: { id: string; name: string; price: number; stock: number }, delta: number) {
-  const idx = cart.value.findIndex((l) => l.id === item.id);
-  if (delta > 0) {
-    if (idx >= 0) {
-      const line = cart.value[idx]!;
-      if (item.stock > 0 && line.qty >= item.stock) return; // 超库存忽略
-      line.qty += 1;
-    } else {
-      cart.value.push({ ...item, qty: 1 });
-    }
-  } else if (idx >= 0) {
-    const line = cart.value[idx]!;
-    line.qty -= 1;
-    if (line.qty <= 0) cart.value.splice(idx, 1);
-  }
-}
-
-function clearCart() {
-  cart.value = [];
-  cartOpen.value = false;
+function goCart() {
+  void router.push("/cart");
 }
 
 async function fetchJson(url: string) {
@@ -501,31 +406,12 @@ onBeforeUnmount(() => {
   font-size: 15px;
 }
 
-/* 底部悬浮购物车 */
+/* 底部悬浮购物车入口（明细在 /cart 页面看） */
 .cart-dock {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  bottom: 72px; /* 让开底部导航栏 */
   z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.cart-panel {
-  width: 320px;
-  max-height: 50vh;
-  overflow-y: auto;
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
-}
-
-.cart-line {
-  gap: 8px;
-  padding: 6px 0;
 }
 
 .cart-bar {
