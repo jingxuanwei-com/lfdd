@@ -1,19 +1,9 @@
 <template>
   <q-page class="flex flex-center">
-    <div class="column items-center">
-      <img
-        alt="Quasar logo"
-        src="~@/assets/quasar-logo-vertical.svg"
-        style="width: 200px; height: 200px"
-      />
-
-      <q-btn
-        class="q-mt-md"
-        color="primary"
-        to="/second"
-        label="Go to Second Page"
-        no-caps
-      />
+    <div class="column items-center q-gutter-sm">
+      <q-icon name="shopping_bag" size="64px" color="primary" />
+      <div class="text-h5">商品</div>
+      <div class="text-grey-7">侧边菜单 + 商品列表（对接 /api/goods/sidebar、/api/goods/page）</div>
     </div>
   </q-page>
 </template>

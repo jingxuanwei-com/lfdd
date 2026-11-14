@@ -39,7 +39,6 @@ declare module 'vue-router/auto-routes' {
       | '//(index)'
       | '//admin'
       | '//cart'
-      | '//menu'
       | '//order'
     >,
     '//(index)': RouteRecordInfo<
@@ -59,13 +58,6 @@ declare module 'vue-router/auto-routes' {
     '//cart': RouteRecordInfo<
       '//cart',
       '/cart',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
-    '//menu': RouteRecordInfo<
-      '//menu',
-      '/menu',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -103,7 +95,6 @@ declare module 'vue-router/auto-routes' {
         | '//(index)'
         | '//admin'
         | '//cart'
-        | '//menu'
         | '//order'
       views:
         | 'default'
@@ -129,14 +120,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/index/cart.vue': {
       routes:
         | '//cart'
-      views:
-        | never
-      pathParamNames:
-        | never
-    }
-    'src/pages/index/menu.vue': {
-      routes:
-        | '//menu'
       views:
         | never
       pathParamNames:
