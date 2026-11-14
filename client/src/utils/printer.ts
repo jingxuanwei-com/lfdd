@@ -3,6 +3,8 @@
 // - 桌面 / 网页（Electron、Chrome）：Web Bluetooth（仅 BLE）
 
 // ==================== ESC/POS 指令 ====================
+import { GBK_TABLE } from "./gbkTable";
+
 export const ESC_INIT = [0x1b, 0x40]; // ESC @ 初始化打印机
 export const ESC_ALIGN_CENTER = [0x1b, 0x61, 0x01]; // ESC a 1 居中对齐
 export const ESC_FEED = [0x1b, 0x64, 0x04]; // ESC d 4 走纸 4 行
@@ -20,6 +22,41 @@ export function buildTestPayload(): number[] {
 // ==================== 运行环境 ====================
 export function isNative(): boolean {
   return Boolean((window as unknown as { Capacitor?: any }).Capacitor?.isNativePlatform?.());
+}
+
+// ==================== 文本编码 ====================
+// 国产热敏机按 GBK 解释字节流，发 UTF-8 中文会乱码
+// GBK_TABLE 索引 = (lead-0x81)*191 + (trail-0x40)，值为对应 unicode 字符
+let gbkEncodeMap: Map<string, number> | null = null;
+
+export function encodeGbk(text: string): Uint8Array {
+  if (!gbkEncodeMap) {
+    gbkEncodeMap = new Map();
+    for (let lead = 0x81; lead <= 0xfe; lead++) {
+      for (let trail = 0x40; trail <= 0xfe; trail++) {
+        const idx = (lead - 0x81) * 191 + (trail - 0x40);
+        const ch = GBK_TABLE[idx] ?? "\u0000";
+        if (ch !== "\u0000" && !gbkEncodeMap.has(ch)) {
+          gbkEncodeMap.set(ch, (lead << 8) | trail);
+        }
+      }
+    }
+  }
+  const out: number[] = [];
+  for (const ch of text) {
+    const code = ch.codePointAt(0)!;
+    if (code < 0x80) {
+      out.push(code); // ASCII 原样
+      continue;
+    }
+    const gbk = gbkEncodeMap.get(ch);
+    if (gbk !== undefined) {
+      out.push(gbk >> 8, gbk & 0xff);
+    } else {
+      out.push(0x3f); // 表外字符输出 '?'
+    }
+  }
+  return new Uint8Array(out);
 }
 
 // ==================== 原生：经典蓝牙 SPP ====================

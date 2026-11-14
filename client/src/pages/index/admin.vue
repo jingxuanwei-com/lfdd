@@ -378,6 +378,7 @@ import {
   bleInit,
   blePrintTo,
   bleScanStart,
+  encodeGbk,
   isNative,
   sppDiscover,
   sppPrint,
@@ -735,13 +736,13 @@ function buildTestPayload() {
       `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`,
     "--------------------------------"
   ];
-  // ESC/POS：初始化 + 居中放大 + 文本 + 走纸切纸（命令本身不含 ESC/POS）
-  const encoder = new TextEncoder();
+  // ESC/POS：初始化 + 居中放大 + 文本 + 走纸切纸
+  // 文本必须用 GBK 编码：国产热敏机按 GBK 解释字节流，发 UTF-8 会乱码
   const parts: Uint8Array[] = [
     new Uint8Array([0x1b, 0x40]), // ESC @ 初始化
     new Uint8Array([0x1b, 0x61, 0x01]), // ESC a 1 居中
     new Uint8Array([0x1d, 0x21, 0x11]), // GS ! 双倍宽高
-    encoder.encode(lines.join("\n")),
+    encodeGbk(lines.join("\n")),
     new Uint8Array([0x1b, 0x61, 0x00]), // ESC a 0 左对齐
     new Uint8Array([0x1d, 0x56, 0x41, 0x03]) // GS V A 3 走纸并切纸
   ];
