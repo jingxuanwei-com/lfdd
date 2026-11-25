@@ -15,6 +15,7 @@ func Start() {
 	apiOrderRouter()
 	apiUserRouter()
 	apiAiRouter()
+	apiAccessRouter()
 
 	log.Print("✅ [Router] 路由注册 加载完成！")
 }

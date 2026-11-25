@@ -23,6 +23,7 @@ func Start() {
 		&Order{},
 		&OrderItem{},
 		&SysConfig{},
+		&AccessToken{},
 	}
 
 	// 2. 调用 AutoMigrate 方法迁移所有模型

@@ -6,6 +6,7 @@ import {
   createWebHashHistory,
   createWebHistory
 } from "vue-router";
+import { resolveAccess } from "@/utils/access";
 
 /*
  * If not building with SSR mode, you can
@@ -37,6 +38,17 @@ export default defineRouter((/* { store, ssrContext } */) => {
   if (import.meta.hot) {
     handleHotUpdate(Router);
   }
+
+  // 访问限制守卫：开启后除 /admin（配置入口）与 /denied（提示页）外，
+  // 其余页面都必须持有效访问令牌（URL 参数 ?access=xxx 或本地已保存）。
+  Router.beforeEach(async to => {
+    if (to.path === "/admin" || to.path === "/denied") return true;
+
+    // hash 模式下参数在 #/ 之后；兼容写在 ? 后的形式
+    const searchToken = new URLSearchParams(window.location.search).get("access");
+    const allowed = await resolveAccess(to.query.access ?? searchToken);
+    return allowed ? true : { path: "/denied" };
+  });
 
   return Router;
 });

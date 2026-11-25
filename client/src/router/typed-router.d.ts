@@ -76,6 +76,13 @@ declare module 'vue-router/auto-routes' {
       { path: ParamValue<false> },
       | never
     >,
+    '/denied': RouteRecordInfo<
+      '/denied',
+      '/denied',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
   }
 
   /**
@@ -140,6 +147,14 @@ declare module 'vue-router/auto-routes' {
         | never
       pathParamNames:
         | 'path'
+    }
+    'src/pages/denied.vue': {
+      routes:
+        | '/denied'
+      views:
+        | never
+      pathParamNames:
+        | never
     }
   }
 

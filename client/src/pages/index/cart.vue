@@ -134,7 +134,7 @@
       </div>
       <q-btn
         color="primary"
-        label="去结算"
+        label="确认"
         unelevated
         :loading="ordering"
         @click="checkout"

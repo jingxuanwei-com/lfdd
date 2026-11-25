@@ -70,6 +70,12 @@
         <q-tab name="print" label="设备管理" icon="print" />
         <q-tab v-if="isAdmin" name="users" label="用户管理" icon="people" />
         <q-tab v-if="isAdmin" name="ai" label="AI 设置" icon="smart_toy" />
+        <q-tab
+          v-if="isAdmin"
+          name="access"
+          label="访问管理"
+          icon="vpn_key"
+        />
       </q-tabs>
       <q-separator />
 
@@ -858,6 +864,151 @@
               </q-card-section>
             </q-card>
           </div>
+        </q-tab-panel>
+
+        <!-- ============ 访问管理 ============ -->
+        <q-tab-panel name="access" class="q-pa-none q-pt-sm">
+          <div class="column q-gutter-md" style="max-width: 720px">
+            <!-- 访问控制开关 -->
+            <q-card flat bordered>
+              <q-card-section class="text-subtitle1">访问控制</q-card-section>
+              <q-card-section class="column q-gutter-sm q-pt-none">
+                <q-toggle
+                  v-model="accessForm.allow_direct"
+                  label="允许直接访问"
+                  color="primary"
+                  dense
+                />
+                <div class="text-caption text-grey-7">
+                  开启时任何人都可直接访问；关闭后除 /admin 页面与已登录用户外，必须使用带有效令牌的链接才能访问。
+                </div>
+                <div>
+                  <q-btn
+                    color="primary"
+                    label="保存"
+                    unelevated
+                    :loading="accessSaving"
+                    @click="saveAccess"
+                  />
+                </div>
+              </q-card-section>
+            </q-card>
+
+            <!-- 令牌列表 -->
+            <q-card flat bordered>
+              <q-card-section class="row items-center">
+                <div class="text-subtitle1">访问令牌</div>
+                <q-space />
+                <q-btn
+                  color="primary"
+                  icon="add"
+                  label="添加令牌"
+                  unelevated
+                  dense
+                  @click="openAccessTokenDlg"
+                />
+              </q-card-section>
+              <q-card-section class="q-pt-none">
+                <q-list v-if="accessTokens.length > 0" separator>
+                  <q-item v-for="t in accessTokens" :key="t.id">
+                    <q-item-section>
+                      <q-item-label
+                        class="ellipsis"
+                        style="font-family: monospace"
+                      >
+                        {{ t.token }}
+                      </q-item-label>
+                      <q-item-label caption>
+                        有效期：{{ accessExpireText(t) }}
+                      </q-item-label>
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="row q-gutter-xs">
+                        <q-btn
+                          flat
+                          dense
+                          icon="link"
+                          @click="copyText(accessUrl(t.token))"
+                        >
+                          <q-tooltip>复制访问链接</q-tooltip>
+                        </q-btn>
+                        <q-btn
+                          flat
+                          dense
+                          color="negative"
+                          icon="delete"
+                          @click="removeAccessToken(t)"
+                        >
+                          <q-tooltip>删除</q-tooltip>
+                        </q-btn>
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+                <div v-else class="text-caption text-grey-6">
+                  暂无令牌。添加后把生成的链接发给需要访问的人。
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <!-- 添加令牌 -->
+          <q-dialog v-model="accessTokenDlg">
+            <q-card style="width: 460px; max-width: 95vw">
+              <q-card-section class="text-h6">添加访问令牌</q-card-section>
+              <q-card-section class="column q-gutter-sm q-pt-none">
+                <template v-if="!accessNewUrl">
+                  <q-select
+                    v-model="accessExpireDays"
+                    :options="accessExpireOptions"
+                    label="有效期"
+                    outlined
+                    dense
+                    emit-value
+                    map-options
+                  />
+                  <div class="text-caption text-grey-7">
+                    令牌过期后自动失效，也可随时在本页删除。
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="text-caption text-grey-7">
+                    令牌已生成，复制下面的链接分享给对方（链接中的 access 参数即访问凭证）：
+                  </div>
+                  <q-input
+                    :model-value="accessNewUrl"
+                    type="textarea"
+                    readonly
+                    outlined
+                    autogrow
+                    :input-style="{
+                      fontFamily: 'monospace',
+                      fontSize: '13px'
+                    }"
+                  />
+                  <div class="row q-gutter-sm">
+                    <q-btn
+                      color="primary"
+                      label="复制链接"
+                      unelevated
+                      @click="copyText(accessNewUrl)"
+                    />
+                    <q-btn flat label="关闭" @click="accessTokenDlg = false" />
+                  </div>
+                </template>
+              </q-card-section>
+              <q-card-actions v-if="!accessNewUrl" align="right">
+                <q-btn flat label="取消" v-close-popup />
+                <q-btn
+                  color="primary"
+                  label="生成令牌"
+                  unelevated
+                  :loading="accessTokenCreating"
+                  @click="createAccessToken"
+                />
+              </q-card-actions>
+            </q-card>
+          </q-dialog>
         </q-tab-panel>
       </q-tab-panels>
 
@@ -1976,8 +2127,11 @@ async function loadMe() {
   } catch {
     isAdmin.value = false;
   }
-  // 非管理员看不到商品/分类/用户/AI 页签，若正停在这些页签则落到「设备管理」
-  if (!isAdmin.value && ["goods", "menus", "users", "ai"].includes(tab.value)) {
+  // 非管理员看不到商品/分类/用户/AI/访问管理页签，若正停在这些页签则落到「设备管理」
+  if (
+    !isAdmin.value &&
+    ["goods", "menus", "users", "ai", "access"].includes(tab.value)
+  ) {
     tab.value = "print";
   }
 }
@@ -2329,10 +2483,125 @@ const aiPromptPreview = computed(() => {
   return "【system 系统提示词】\n" + sys + "\n\n【user 用户消息】\n" + user;
 });
 
-// 切到用户管理 / AI 设置页签时懒加载数据
+// ================= 访问管理 =================
+interface AccessTokenItem {
+  id: string;
+  token: string;
+  expires_at: string | null;
+  created_at: string;
+}
+
+const accessForm = reactive({ allow_direct: true });
+const accessTokens = ref<AccessTokenItem[]>([]);
+const accessSaving = ref(false);
+const accessTokenDlg = ref(false);
+const accessTokenCreating = ref(false);
+const accessExpireDays = ref(7);
+const accessNewUrl = ref("");
+
+const accessExpireOptions = [
+  { label: "1 天", value: 1 },
+  { label: "7 天", value: 7 },
+  { label: "30 天", value: 30 },
+  { label: "90 天", value: 90 },
+  { label: "1 年", value: 365 },
+  { label: "永久有效", value: 0 }
+];
+
+async function loadAccess() {
+  try {
+    const d = await api("/api/access/settings");
+    accessForm.allow_direct = d.allow_direct !== false;
+    accessTokens.value = Array.isArray(d.tokens) ? d.tokens : [];
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  }
+}
+
+async function saveAccess() {
+  accessSaving.value = true;
+  try {
+    await api("/api/access/save", {
+      method: "POST",
+      body: { allow_direct: accessForm.allow_direct }
+    });
+    $q.notify({ message: "已保存，立即生效", color: "positive" });
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    accessSaving.value = false;
+  }
+}
+
+function openAccessTokenDlg() {
+  accessExpireDays.value = 7;
+  accessNewUrl.value = "";
+  accessTokenDlg.value = true;
+}
+
+// 带令牌的访问链接（hash 路由：https://站点/#/?access=令牌）
+function accessUrl(token: string): string {
+  return `${location.origin}${location.pathname}#/?access=${encodeURIComponent(token)}`;
+}
+
+async function createAccessToken() {
+  accessTokenCreating.value = true;
+  try {
+    const d = await api("/api/access/token/create", {
+      method: "POST",
+      body: { expire_days: accessExpireDays.value }
+    });
+    accessNewUrl.value = accessUrl(d.token);
+    await loadAccess();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    accessTokenCreating.value = false;
+  }
+}
+
+function accessExpireText(t: AccessTokenItem) {
+  if (!t.expires_at) return "永久有效";
+  const d = new Date(t.expires_at);
+  if (Number.isNaN(d.getTime())) return "永久有效";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const text = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return d.getTime() < Date.now() ? `${text}（已过期）` : text;
+}
+
+function removeAccessToken(t: AccessTokenItem) {
+  $q.dialog({
+    title: "删除令牌",
+    message: "删除后该链接将立即无法访问，确定继续？",
+    cancel: true
+  }).onOk(async () => {
+    try {
+      await api("/api/access/token/delete", {
+        method: "POST",
+        body: { id: t.id }
+      });
+      $q.notify({ message: "已删除", color: "positive" });
+      await loadAccess();
+    } catch (e) {
+      $q.notify({ message: describeError(e), color: "negative" });
+    }
+  });
+}
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    $q.notify({ message: "已复制", color: "positive" });
+  } catch {
+    $q.notify({ message: "复制失败，请手动选择复制", color: "negative" });
+  }
+}
+
+// 切到用户管理 / AI 设置 / 访问管理页签时懒加载数据
 watch(tab, v => {
   if (v === "users") void loadUsers(1);
   else if (v === "ai") void loadAi();
+  else if (v === "access") void loadAccess();
 });
 
 // ================= 初始化 =================
