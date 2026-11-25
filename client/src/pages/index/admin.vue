@@ -997,8 +997,10 @@
 
           <!-- 添加令牌 -->
           <q-dialog v-model="accessTokenDlg">
-            <q-card style="width: 460px; max-width: 95vw">
-              <q-card-section class="text-h6">添加访问令牌</q-card-section>
+            <q-card class="token-dlg" style="width: 460px; max-width: 95vw">
+              <q-card-section class="text-h6 token-dlg-head"
+                >添加访问令牌</q-card-section
+              >
               <q-card-section class="column q-gutter-sm q-pt-none">
                 <template v-if="!accessNewUrl">
                   <q-select
@@ -1030,7 +1032,7 @@
                       fontSize: '13px'
                     }"
                   />
-                  <div class="row q-gutter-sm">
+                  <div class="row token-dlg-actions">
                     <q-btn
                       color="primary"
                       label="复制链接"
@@ -3039,6 +3041,24 @@ onMounted(async () => {
   margin-top: 6px;
 }
 
+.token-dlg-actions {
+  gap: 8px;
+}
+
+/* 长链接输入框：允许在 flex 容器内收缩，避免撑破弹窗 */
+.token-dlg :deep(.q-field),
+.token-dlg :deep(.q-field__control-container) {
+  min-width: 0;
+}
+
+.token-dlg :deep(textarea) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 @media (max-width: 599px) {
   /* 小屏：压缩页面留白；令牌文本换行显示，操作按钮保持在右侧 */
   .admin-page {
@@ -3053,6 +3073,27 @@ onMounted(async () => {
 
   .access-token-item :deep(.q-item__section--side) {
     padding-left: 4px;
+  }
+
+  /* 添加令牌弹窗：小屏压缩留白，链接字号缩小，按钮整行便于点按 */
+  .token-dlg .q-card__section {
+    padding: 12px 14px;
+  }
+
+  .token-dlg-head {
+    padding-bottom: 4px;
+  }
+
+  .token-dlg :deep(textarea) {
+    font-size: 12px !important;
+  }
+
+  .token-dlg-actions {
+    flex-direction: column;
+  }
+
+  .token-dlg-actions .q-btn {
+    width: 100%;
   }
 
   .goods-thumb {
