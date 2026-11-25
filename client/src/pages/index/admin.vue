@@ -1305,7 +1305,11 @@
                 @click="promptMediaUrl"
               />
             </div>
-            <div v-if="goodsForm.media.length" class="media-grid">
+            <div
+              v-if="goodsForm.media.length"
+              ref="mediaGridRef"
+              class="media-grid"
+            >
               <div
                 v-for="(m, i) in goodsForm.media"
                 :key="mediaKey(m)"
@@ -1337,6 +1341,12 @@
                   >首页</div
                 >
               </div>
+            </div>
+            <div
+              v-if="goodsForm.media.length > 1"
+              class="text-caption text-grey-7"
+            >
+              按住图片拖动可调整顺序，第一张图片作为首页展示。
             </div>
             <q-toggle
               v-model="goodsForm.statusOn"
@@ -1392,7 +1402,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue";
+import Sortable from "sortablejs";
 import { useQuasar } from "quasar";
 import { apiPath } from "@/utils/api";
 import {
@@ -1690,6 +1701,49 @@ function firstMediaImage(): string {
   const m = goodsForm.media.find(x => x.type === "image");
   return m ? mediaKey(m) : "";
 }
+
+// ================= 商品媒体拖拽排序 =================
+// 拖动后同步 goodsForm.media 顺序（第一张图片即首页图）；SortableJS 同时支持鼠标与触屏
+const mediaGridRef = ref<HTMLElement | null>(null);
+let mediaSortable: Sortable | null = null;
+
+const mediaSortableVisible = computed(
+  () => goodsDlg.value && goodsForm.media.length > 0
+);
+
+async function setupMediaSortable() {
+  await nextTick();
+  if (!mediaGridRef.value) {
+    await nextTick();
+  }
+  if (!mediaGridRef.value) return;
+
+  mediaSortable?.destroy();
+  mediaSortable = Sortable.create(mediaGridRef.value, {
+    animation: 150,
+    ghostClass: "media-ghost",
+    // 删除按钮不参与拖动
+    filter: ".media-remove",
+    preventOnFilter: false,
+    onEnd: e => {
+      const from = e.oldIndex;
+      const to = e.newIndex;
+      if (from == null || to == null || from === to) return;
+      const list = goodsForm.media;
+      const [moved] = list.splice(from, 1);
+      if (moved) list.splice(to, 0, moved);
+    }
+  });
+}
+
+watch(mediaSortableVisible, visible => {
+  if (!visible) {
+    mediaSortable?.destroy();
+    mediaSortable = null;
+    return;
+  }
+  void setupMediaSortable();
+});
 
 // 拍照：唤起系统相机，拍完直接按上传流程压缩入库（无相机的桌面端退化为选择文件）
 function captureMedia() {
@@ -2927,6 +2981,13 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
   gap: 8px;
+}
+
+/* 拖动中的占位：半透明提示落点 */
+.media-ghost {
+  opacity: 0.4;
+  outline: 2px dashed var(--q-primary);
+  outline-offset: -2px;
 }
 
 /* 网页嵌套项：缩略图占位 */
