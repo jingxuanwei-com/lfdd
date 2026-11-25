@@ -1,15 +1,16 @@
 package service
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"net/url"
 	"server/core/db"
 	"server/model"
 	"strconv"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 )
@@ -161,11 +162,12 @@ type GetGoodsListVersionInput struct {
 }
 
 // GetGoodsListVersion 商品列表版本（数量 + 最近更新时间），用于 ETag 协商缓存：
-// 商品增删改、下单扣库存都会刷新 updated_at，版本随之变化
+// 商品增删改、下单扣库存都会刷新 updated_at，版本随之变化。
+// SQLite 的 MAX(updated_at) 聚合结果没有类型信息，驱动按字符串返回，故按字符串接收再哈希
 func GetGoodsListVersion(i GetGoodsListVersionInput) (string, error) {
 	var row struct {
 		Cnt int64
-		Ts  *time.Time
+		Ts  sql.NullString
 	}
 	q := db.DB.Model(&model.Goods{}).Where("status = ?", 1)
 	if i.MenuID > 0 {
@@ -175,11 +177,13 @@ func GetGoodsListVersion(i GetGoodsListVersionInput) (string, error) {
 		return "", err
 	}
 
-	var ts int64
-	if row.Ts != nil {
-		ts = row.Ts.Unix()
+	ts := ""
+	if row.Ts.Valid {
+		ts = row.Ts.String
 	}
-	return fmt.Sprintf(`W/"%d-%d"`, row.Cnt, ts), nil
+	sum := fnv.New32a()
+	_, _ = sum.Write([]byte(ts))
+	return fmt.Sprintf(`W/"%d-%x"`, row.Cnt, sum.Sum32()), nil
 }
 
 // toGoodsView 模型转视图，集中一处避免各接口字段遗漏；withCost=false 时不返回进价
