@@ -44,8 +44,8 @@ func (h *ApiOrderHandler) Create(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-// Finish 结单：按当前价锁定本单明细并合计，只能结一次
-// body: {"id":"1"} → {"total":3700,"count":2}
+// Finish 结单：按当前价锁定本单明细并合计，只能结一次；可传 paid（实付，分）记录实付
+// body: {"id":"1"} 或 {"id":"1","paid":3500} → {"total":3700,"paid":3500,"count":2}
 func (h *ApiOrderHandler) Finish(c *gin.Context) {
 	if guestIDOf(c) != "" {
 		c.JSON(403, gin.H{"message": "游客无权结单"})

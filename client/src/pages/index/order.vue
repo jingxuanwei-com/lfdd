@@ -2,28 +2,67 @@
   <q-page class="order-page column" :style-fn="pageStyle">
     <!-- 标题栏：未结束 / 已结束 两个页签 -->
     <div class="row items-center justify-between q-px-md q-py-sm">
-      <q-tabs v-model="statusTab" dense active-color="primary" class="col" @update:model-value="onTabChange">
+      <q-tabs
+        v-model="statusTab"
+        dense
+        active-color="primary"
+        class="col"
+        @update:model-value="onTabChange"
+      >
         <q-tab name="0" label="未结束" />
         <q-tab v-if="!isGuest" name="1" label="已结束" />
       </q-tabs>
-      <q-btn flat dense size="sm" color="primary" icon="refresh" label="刷新" @click="loadOrders(true)" />
+      <q-btn
+        flat
+        dense
+        size="sm"
+        color="primary"
+        icon="refresh"
+        label="刷新"
+        @click="loadOrders(true)"
+      />
     </div>
 
     <!-- 管理员：服务端搜索（按单号 / 日期） -->
     <div v-if="isAdmin" class="row items-center q-gutter-xs q-px-md q-pb-sm">
-      <q-input v-model="searchKeyword" dense outlined clearable placeholder="按单号搜索" class="col"
-        @keyup.enter="loadOrders(true)" @clear="onKeywordClear">
+      <q-input
+        v-model="searchKeyword"
+        dense
+        outlined
+        clearable
+        placeholder="按单号搜索"
+        class="col"
+        @keyup.enter="loadOrders(true)"
+        @clear="onKeywordClear"
+      >
         <template #prepend>
           <q-icon name="search" />
         </template>
       </q-input>
-      <q-input v-model="searchDate" dense outlined clearable type="date" class="col"
-        @update:model-value="loadOrders(true)" @clear="onDateClear" />
-      <q-btn dense unelevated color="primary" label="搜索" @click="loadOrders(true)" />
+      <q-input
+        v-model="searchDate"
+        dense
+        outlined
+        clearable
+        type="date"
+        class="col"
+        @update:model-value="loadOrders(true)"
+        @clear="onDateClear"
+      />
+      <q-btn
+        dense
+        unelevated
+        color="primary"
+        label="搜索"
+        @click="loadOrders(true)"
+      />
     </div>
 
     <!-- 空态 -->
-    <div v-if="orders.length === 0 && !loading" class="column items-center justify-center empty-box">
+    <div
+      v-if="orders.length === 0 && !loading"
+      class="column items-center justify-center empty-box"
+    >
       <q-icon name="receipt_long" size="64px" color="grey-4" />
       <div class="text-body1 text-grey-7 q-mt-md">
         {{
@@ -34,7 +73,13 @@
               : "没有已结束的订单"
         }}
       </div>
-      <q-btn v-if="statusTab === '0'" class="q-mt-md" color="primary" label="去点单" to="/" />
+      <q-btn
+        v-if="statusTab === '0'"
+        class="q-mt-md"
+        color="primary"
+        label="去点单"
+        to="/"
+      />
     </div>
 
     <div v-else class="order-list">
@@ -55,23 +100,81 @@
 
         <!-- 操作按钮单独一行，避免挤压订单号；游客不显示结束/打印/修改/作废 -->
         <div class="row items-center q-gutter-xs q-mt-sm order-actions">
-          <q-btn v-if="!isGuest && o.status === 0" color="orange" icon="payments" label="结束" unelevated size="sm"
-            :loading="finishingId === o.id" @click="finishOrder(o)" />
-          <q-btn color="primary" icon="shopping_cart" label="复制" unelevated size="sm" @click="copyToCart(o)" />
-          <q-btn v-if="o.status === 0" color="indigo" icon="sticky_note_2" label="备注" unelevated size="sm"
-            :loading="remarkingId === o.id" @click="promptRemark(o)" />
-          <q-btn v-if="!isGuest" color="primary" icon="print" label="打印" unelevated size="sm"
-            :loading="printingId === o.id" @click="openPrint(o)" />
-          <q-btn v-if="!isGuest && o.status === 0" color="teal" icon="price_change" label="修改" unelevated size="sm"
-            @click="openPrice(o)" />
-          <q-btn v-if="!isGuest && o.status === 0" color="negative" icon="block" label="作废" unelevated size="sm"
-            :loading="voidingId === o.id" @click="confirmVoid(o)" />
-          <q-btn v-if="o.status === 1" color="negative" icon="delete" label="删除" unelevated size="sm"
-            :loading="deletingId === o.id" @click="confirmDelete(o)" />
+          <q-btn
+            v-if="!isGuest && o.status === 0"
+            color="orange"
+            icon="payments"
+            label="结束"
+            unelevated
+            size="sm"
+            :loading="finishingId === o.id"
+            @click="openFinish(o)"
+          />
+          <q-btn
+            color="primary"
+            icon="shopping_cart"
+            label="复制"
+            unelevated
+            size="sm"
+            @click="copyToCart(o)"
+          />
+          <q-btn
+            v-if="o.status === 0"
+            color="indigo"
+            icon="sticky_note_2"
+            label="备注"
+            unelevated
+            size="sm"
+            :loading="remarkingId === o.id"
+            @click="promptRemark(o)"
+          />
+          <q-btn
+            v-if="!isGuest"
+            color="primary"
+            icon="print"
+            label="打印"
+            unelevated
+            size="sm"
+            :loading="printingId === o.id"
+            @click="openPrint(o)"
+          />
+          <q-btn
+            v-if="!isGuest && o.status === 0"
+            color="teal"
+            icon="price_change"
+            label="修改"
+            unelevated
+            size="sm"
+            @click="openPrice(o)"
+          />
+          <q-btn
+            v-if="!isGuest && o.status === 0"
+            color="negative"
+            icon="block"
+            label="作废"
+            unelevated
+            size="sm"
+            :loading="voidingId === o.id"
+            @click="confirmVoid(o)"
+          />
+          <q-btn
+            v-if="o.status === 1"
+            color="negative"
+            icon="delete"
+            label="删除"
+            unelevated
+            size="sm"
+            :loading="deletingId === o.id"
+            @click="confirmDelete(o)"
+          />
         </div>
 
         <div class="order-items q-mt-sm">
-          <div v-for="(it, idx) in o.items" :key="idx" class="order-item row items-center">
+          <div
+            v-for="(it, idx) in o.items"
+            :key="idx"
+            class="order-item row items-center"
+          >
             <div class="item-thumb">
               <img v-if="it.image" :src="imgSrc(it.image)" :alt="it.name" />
               <q-icon v-else name="shopping_bag" size="20px" color="grey-5" />
@@ -80,14 +183,17 @@
               <div class="text-caption ellipsis">{{ it.name }}</div>
               <div v-if="it.spec" class="text-caption text-grey-6 ellipsis">{{
                 it.spec
-                }}</div>
+              }}</div>
             </div>
             <div class="text-caption text-grey-7">x{{ it.qty }}</div>
             <div class="column items-end" style="min-width: 96px">
               <!-- 单价：改过价显示原价划线 + 改后价 -->
               <div class="text-caption text-grey-7">
                 <template v-if="it.edited === 1">
-                  <span class="text-grey-5" style="text-decoration: line-through">
+                  <span
+                    class="text-grey-5"
+                    style="text-decoration: line-through"
+                  >
                     {{ fmtPrice(it.orig_price) }}
                   </span>
                   <span class="text-weight-medium text-negative q-ml-xs">
@@ -96,10 +202,19 @@
                 </template>
                 <template v-else>{{ fmtPrice(it.price) }}</template>
               </div>
-              <div class="text-caption text-weight-medium">{{ fmtPrice(it.price * it.qty) }}</div>
+              <div class="text-caption text-weight-medium">{{
+                fmtPrice(it.price * it.qty)
+              }}</div>
             </div>
-            <q-chip v-if="it.edited === 1" dense size="xs" flat color="deep-orange" text-color="white"
-              class="q-ma-none">
+            <q-chip
+              v-if="it.edited === 1"
+              dense
+              size="xs"
+              flat
+              color="deep-orange"
+              text-color="white"
+              class="q-ma-none"
+            >
               修改
             </q-chip>
           </div>
@@ -107,17 +222,41 @@
 
         <div class="row items-center justify-end q-gutter-sm q-mt-sm">
           <span class="text-caption text-grey-7">共 {{ o.count }} 件</span>
-          <span class="text-caption text-weight-bold text-negative">合计 {{ fmtPrice(o.total) }}</span>
-          <q-chip v-if="o.status === 0" color="orange" text-color="white" dense size="sm" class="q-ma-none">
+          <span class="text-caption text-weight-bold text-negative"
+            >合计 {{ fmtPrice(o.total) }}</span
+          >
+          <span
+            v-if="o.paid > 0 && o.paid !== o.total"
+            class="text-caption text-weight-bold text-deep-orange"
+          >
+            实付 {{ fmtPrice(o.paid) }}
+          </span>
+          <q-chip
+            v-if="o.status === 0"
+            color="orange"
+            text-color="white"
+            dense
+            size="sm"
+            class="q-ma-none"
+          >
             待结束
           </q-chip>
         </div>
       </div>
 
       <div class="text-center q-pb-md">
-        <q-btn v-if="hasMore" flat dense color="primary" :loading="loadingMore" label="加载更多"
-          @click="loadOrders(false)" />
-        <span v-else-if="orders.length > 0" class="text-caption text-grey-6">— 没有更多了 —</span>
+        <q-btn
+          v-if="hasMore"
+          flat
+          dense
+          color="primary"
+          :loading="loadingMore"
+          label="加载更多"
+          @click="loadOrders(false)"
+        />
+        <span v-else-if="orders.length > 0" class="text-caption text-grey-6"
+          >— 没有更多了 —</span
+        >
       </div>
     </div>
 
@@ -130,23 +269,37 @@
         </q-card-section>
 
         <q-card-section class="q-pt-none">
-          <div class="text-caption text-grey-7">订单 {{ printOrder?.order_no }}</div>
+          <div class="text-caption text-grey-7"
+            >订单 {{ printOrder?.order_no }}</div
+          >
 
           <!-- 已添加设备：点选即打印（编码按各设备设置） -->
           <q-list v-if="printers.length > 0" bordered separator class="q-mt-sm">
-            <q-item v-for="p in printers" :key="p.key" clickable v-ripple :disable="printing" @click="printWith(p)">
+            <q-item
+              v-for="p in printers"
+              :key="p.key"
+              clickable
+              v-ripple
+              :disable="printing"
+              @click="printWith(p)"
+            >
               <q-item-section avatar>
-                <q-icon :name="p.kind === 'label'
-                  ? 'label'
-                  : p.conn === 'spp'
-                    ? 'settings_input_antenna'
-                    : 'bluetooth'
-                  " :color="p.kind === 'label'
-                    ? 'deep-purple'
-                    : p.conn === 'spp'
-                      ? 'teal'
-                      : 'primary'
-                    " />
+                <q-icon
+                  :name="
+                    p.kind === 'label'
+                      ? 'label'
+                      : p.conn === 'spp'
+                        ? 'settings_input_antenna'
+                        : 'bluetooth'
+                  "
+                  :color="
+                    p.kind === 'label'
+                      ? 'deep-purple'
+                      : p.conn === 'spp'
+                        ? 'teal'
+                        : 'primary'
+                  "
+                />
               </q-item-section>
               <q-item-section>
                 <q-item-label>{{ p.name }}</q-item-label>
@@ -162,7 +315,9 @@
                   · {{ p.encoding === "utf8" ? "UTF-8" : "GBK" }}
                 </q-item-label>
               </q-item-section>
-              <q-item-section side><q-icon name="print" color="grey-7" /></q-item-section>
+              <q-item-section side
+                ><q-icon name="print" color="grey-7"
+              /></q-item-section>
             </q-item>
           </q-list>
 
@@ -170,17 +325,77 @@
           <div v-else class="column items-center q-mt-md">
             <q-icon name="printer" size="48px" color="grey-4" />
             <div class="text-body2 text-grey-7 q-mt-sm">还没有添加打印机</div>
-            <q-btn class="q-mt-sm" color="primary" label="去添加设备" unelevated @click="goManagePrinter" />
+            <q-btn
+              class="q-mt-sm"
+              color="primary"
+              label="去添加设备"
+              unelevated
+              @click="goManagePrinter"
+            />
           </div>
 
-          <div v-if="printStatus" class="q-mt-sm text-caption"
-            :class="printStatusOk ? 'text-positive' : 'text-negative'">
+          <div
+            v-if="printStatus"
+            class="q-mt-sm text-caption"
+            :class="printStatusOk ? 'text-positive' : 'text-negative'"
+          >
             {{ printStatus }}
           </div>
         </q-card-section>
 
         <q-card-actions align="right">
           <q-btn flat label="关闭" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- 结束订单：可填实付金额；不填或与合计相同则按合计结束 -->
+    <q-dialog v-model="finishDlg">
+      <q-card style="width: 380px; max-width: 92vw">
+        <q-card-section class="row items-center justify-between">
+          <span class="text-body2 text-weight-medium">结束订单</span>
+          <q-icon name="payments" color="orange" />
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          <div class="text-caption text-grey-7"
+            >订单 {{ finishTarget?.order_no }}</div
+          >
+
+          <div class="row items-center justify-between q-mt-sm">
+            <span class="text-body2"
+              >商品合计（{{ finishTarget?.count ?? 0 }} 件）</span
+            >
+            <span class="text-body2 text-weight-bold text-negative">
+              {{ fmtPrice(finishTarget?.total ?? 0) }}
+            </span>
+          </div>
+
+          <q-input
+            v-model="finishPaid"
+            type="number"
+            inputmode="decimal"
+            dense
+            outlined
+            class="q-mt-md"
+            label="实付金额（元）"
+            prefix="￥"
+            :placeholder="fmtPrice(finishTarget?.total ?? 0)"
+          />
+          <div class="text-caption text-grey-6 q-mt-xs"
+            >留空或与合计相同，按商品合计结束</div
+          >
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="取消" v-close-popup />
+          <q-btn
+            color="orange"
+            label="确定结束"
+            unelevated
+            :loading="!!finishingId"
+            @click="confirmFinish"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -192,41 +407,89 @@
           <span class="text-body2 text-weight-medium">批量修改</span>
           <div class="row items-center">
             <!-- 管理员：小眼睛开关进价显示 -->
-            <q-btn v-if="isAdmin" flat dense round size="sm" :icon="showCost ? 'visibility_off' : 'visibility'"
-              color="grey-7" aria-label="显示进价" @click="toggleCost" />
+            <q-btn
+              v-if="isAdmin"
+              flat
+              dense
+              round
+              size="sm"
+              :icon="showCost ? 'visibility_off' : 'visibility'"
+              color="grey-7"
+              aria-label="显示进价"
+              @click="toggleCost"
+            />
             <q-icon name="price_change" color="primary" />
           </div>
         </q-card-section>
 
         <q-card-section class="q-pt-none">
-          <div class="text-caption text-grey-7">订单 {{ priceOrder?.order_no }}</div>
+          <div class="text-caption text-grey-7"
+            >订单 {{ priceOrder?.order_no }}</div
+          >
 
           <div class="q-mt-sm price-rows">
-            <div v-for="r in priceRows" :key="r.goods_id" class="price-row row items-center">
+            <div
+              v-for="r in priceRows"
+              :key="r.goods_id"
+              class="price-row row items-center"
+            >
               <div class="col">
                 <div class="text-caption ellipsis">{{ r.name }}</div>
                 <div class="text-caption text-grey-6">
                   <!-- 原价 ={{ fmtPrice(r.orig) }} -->
-                  <span v-if="r.edited" class="text-weight-medium text-negative q-ml-xs">
+                  <span
+                    v-if="r.edited"
+                    class="text-weight-medium text-negative q-ml-xs"
+                  >
                     现修改 ={{ fmtPrice(r.initial) }}
                   </span>
                 </div>
                 <!-- 管理员：开启小眼睛后显示进价 -->
-                <div v-if="isAdmin && showCost" class="text-caption text-grey-6">
+                <div
+                  v-if="isAdmin && showCost"
+                  class="text-caption text-grey-6"
+                >
                   {{ fmtPrice(goodsCost[r.goods_id] ?? 0) }}
                 </div>
               </div>
-              <q-input v-model="r.val" type="number" dense outlined class="price-input" :aria-label="`${r.name}新单价`" />
-              <q-btn flat dense round color="grey-7" icon="undo" size="sm" :aria-label="`重置${r.name}单价`"
-                @click="resetRow(r)" />
+              <q-input
+                v-model="r.val"
+                type="number"
+                dense
+                outlined
+                class="price-input"
+                :aria-label="`${r.name}新单价`"
+              />
+              <q-btn
+                flat
+                dense
+                round
+                color="grey-7"
+                icon="undo"
+                size="sm"
+                :aria-label="`重置${r.name}单价`"
+                @click="resetRow(r)"
+              />
             </div>
           </div>
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="全部重置" color="grey-8" icon="restart_alt" @click="resetAll" />
+          <q-btn
+            flat
+            label="全部重置"
+            color="grey-8"
+            icon="restart_alt"
+            @click="resetAll"
+          />
           <q-btn flat label="取消" v-close-popup />
-          <q-btn color="primary" label="保存" unelevated :loading="savingPrice" @click="savePrice" />
+          <q-btn
+            color="primary"
+            label="保存"
+            unelevated
+            :loading="savingPrice"
+            @click="savePrice"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -333,6 +596,7 @@ interface Order {
   id: string;
   order_no: string;
   total: number; // 合计，分（待结束时为 0）
+  paid: number; // 实付，分；0 表示与合计相同
   count: number;
   status: number; // 0 待结束、1 已结束
   remark: string; // 订单备注（结束后锁定）
@@ -415,25 +679,63 @@ async function loadOrders(reset: boolean) {
 
 const finishingId = ref<string | null>(null); // 结束中的订单
 
+// 结束弹窗：默认留空实付，按商品合计结束
+const finishDlg = ref(false);
+const finishTarget = ref<Order | null>(null);
+const finishPaid = ref(""); // 元，空 = 不修改
+
+function openFinish(o: Order) {
+  finishTarget.value = o;
+  finishPaid.value = "";
+  finishDlg.value = true;
+}
+
+async function confirmFinish() {
+  const o = finishTarget.value;
+  if (!o) return;
+  let paid: number | undefined;
+  const raw = finishPaid.value.trim();
+  if (raw !== "") {
+    const yuan = Number(raw);
+    if (!Number.isFinite(yuan) || yuan < 0) {
+      $q.notify({ message: "请输入有效的实付金额", color: "orange" });
+      return;
+    }
+    const fen = Math.round(yuan * 100);
+    if (fen !== o.total) paid = fen;
+  }
+  const ok = await finishOrder(o, paid);
+  if (ok) finishDlg.value = false;
+}
+
 // 结束：按当前价锁定本单价格，成功后刷新列表（锁价结果从后端重取）
-async function finishOrder(o: Order) {
-  if (finishingId.value) return;
+// paid 不传 = 不修改实付；传入按实付金额记录
+async function finishOrder(o: Order, paid?: number): Promise<boolean> {
+  if (finishingId.value) return false;
   finishingId.value = o.id;
   try {
+    const body = paid === undefined ? { id: o.id } : { id: o.id, paid };
     const res = await fetch("/api/order/finish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: o.id })
+      body: JSON.stringify(body)
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || `结束失败（${res.status}）`);
+    const paidFen =
+      typeof data.paid === "number" && data.paid > 0 ? data.paid : data.total;
     $q.notify({
-      message: `结束成功，合计 =${fmtPrice(data.total)}`,
+      message:
+        paidFen === data.total
+          ? `结束成功，合计 =${fmtPrice(data.total)}`
+          : `结束成功，合计 =${fmtPrice(data.total)}，实付 =${fmtPrice(paidFen)}`,
       color: "positive"
     });
     await loadOrders(true);
+    return true;
   } catch (e) {
     $q.notify({ message: describeErrorLocal(e), color: "negative" });
+    return false;
   } finally {
     finishingId.value = null;
   }
@@ -467,7 +769,8 @@ async function saveRemark(o: Order, remark: string) {
       body: JSON.stringify({ id: o.id, remark })
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || `备注保存失败（${res.status}）`);
+    if (!res.ok)
+      throw new Error(data.message || `备注保存失败（${res.status}）`);
     // 后端已去掉首尾空白，以返回值为准
     o.remark = typeof data.remark === "string" ? data.remark : remark;
     $q.notify({ message: "备注已保存", color: "positive" });
@@ -700,6 +1003,7 @@ function toReceipt(o: Order): ReceiptOrder {
     createdAt: o.created_at,
     count: o.count,
     total: o.total,
+    paid: o.paid,
     items: o.items.map(it => ({
       name: it.name,
       spec: it.spec,

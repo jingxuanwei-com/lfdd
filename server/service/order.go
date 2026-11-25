@@ -121,8 +121,8 @@ func CreateOrder(i CreateOrderInput) (o CreateOrderOutput, err error) {
 
 type SetOrderRemarkInput struct {
 	ID      int64  `json:"id,string"` // 订单 ID
-	Remark  string `json:"remark"`     // 备注内容，空串表示清空
-	GuestID string `json:"-"`          // 游客身份：非空时只能改自己下的单
+	Remark  string `json:"remark"`    // 备注内容，空串表示清空
+	GuestID string `json:"-"`         // 游客身份：非空时只能改自己下的单
 }
 type SetOrderRemarkOutput struct {
 	Remark string `json:"remark"`
@@ -168,10 +168,12 @@ func SetOrderRemark(i SetOrderRemarkInput) (o SetOrderRemarkOutput, err error) {
 // ------------------------ FinishOrder 结单（锁定价格） ------------------------
 
 type FinishOrderInput struct {
-	ID int64 `json:"id,string"` // 订单 ID
+	ID   int64 `json:"id,string"` // 订单 ID
+	Paid *int  `json:"paid"`      // 实付金额，分；不传或与合计相同表示不修改
 }
 type FinishOrderOutput struct {
 	Total int `json:"total"` // 锁定后的合计，分
+	Paid  int `json:"paid"`  // 实付，分；0 表示与合计相同
 	Count int `json:"count"` // 商品总件数
 }
 
@@ -224,6 +226,16 @@ func FinishOrder(i FinishOrderInput) (o FinishOrderOutput, err error) {
 		total += g.Price * it.Qty
 	}
 
+	paid := 0 // 0 = 未单独记录，实付等于合计
+	if i.Paid != nil {
+		if *i.Paid < 0 {
+			return o, errors.New("实付金额不能为负")
+		}
+		if *i.Paid != total { // 与合计相同视为未修改
+			paid = *i.Paid
+		}
+	}
+
 	// 3. 事务：结单锁定——原价写商品当时价，改价行保留改后价，未改价行回填商品价
 	err = db.DB.Transaction(func(tx *gorm.DB) error {
 		for _, it := range items {
@@ -238,7 +250,7 @@ func FinishOrder(i FinishOrderInput) (o FinishOrderOutput, err error) {
 			}
 		}
 		res := tx.Model(&model.Order{}).Where("id = ? AND status = ?", ord.ID, 0).
-			Updates(map[string]any{"total": total, "status": 1})
+			Updates(map[string]any{"total": total, "paid": paid, "status": 1})
 		if res.Error != nil {
 			return res.Error
 		}
@@ -252,6 +264,7 @@ func FinishOrder(i FinishOrderInput) (o FinishOrderOutput, err error) {
 	}
 
 	o.Total = total
+	o.Paid = paid
 	o.Count = ord.Count
 	return o, nil
 }
@@ -419,6 +432,7 @@ type OrderView struct {
 	ID        int64           `json:"id,string"`
 	OrderNo   string          `json:"order_no"`
 	Total     int             `json:"total"`  // 合计，分（待结单时为 0）
+	Paid      int             `json:"paid"`   // 实付，分；0 表示与合计相同
 	Count     int             `json:"count"`  // 商品总件数
 	Status    int8            `json:"status"` // 0 待结单、1 已结单
 	Remark    string          `json:"remark"` // 订单备注
@@ -561,6 +575,7 @@ func GetOrders(i GetOrdersInput) (o GetOrdersOutput, err error) {
 			ID:        ord.ID,
 			OrderNo:   ord.OrderNo,
 			Total:     total,
+			Paid:      ord.Paid,
 			Count:     ord.Count,
 			Status:    ord.Status,
 			Remark:    ord.Remark,

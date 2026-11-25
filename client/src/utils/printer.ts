@@ -11,7 +11,9 @@ export const ESC_FEED = [0x1b, 0x64, 0x04]; // ESC d 4 走纸 4 行
 
 // ==================== 运行环境 ====================
 export function isNative(): boolean {
-  return Boolean((window as unknown as { Capacitor?: any }).Capacitor?.isNativePlatform?.());
+  return Boolean(
+    (window as unknown as { Capacitor?: any }).Capacitor?.isNativePlatform?.()
+  );
 }
 
 // ==================== 文本编码 ====================
@@ -23,11 +25,14 @@ export type PrinterEncoding = "gbk" | "utf8";
 // 国产热敏机按 GBK 解释字节流，发 UTF-8 中文会乱码
 // str2gbk：纯浏览器 GBK 编码（<1KB，基于 TextDecoder 反查实现）
 export function encodeGbk(text: string): Uint8Array {
-  return str2gbk(text, { onAlloc: (len) => new Uint8Array(len) });
+  return str2gbk(text, { onAlloc: len => new Uint8Array(len) });
 }
 
 // 按设备编码格式编码文本（utf8 机型发 UTF-8，gbk 机型发 GBK）
-export function encodeText(text: string, enc: PrinterEncoding = "gbk"): Uint8Array {
+export function encodeText(
+  text: string,
+  enc: PrinterEncoding = "gbk"
+): Uint8Array {
   return enc === "utf8" ? new TextEncoder().encode(text) : encodeGbk(text);
 }
 
@@ -55,6 +60,7 @@ export interface ReceiptOrder {
   createdAt: string; // 2026-11-14 12:00:00
   count: number; // 商品总件数
   total: number; // 合计，分
+  paid?: number; // 实付，分；0 或与合计相同表示未单独记录
   items: ReceiptItem[];
 }
 
@@ -84,7 +90,8 @@ function displayWidth(s: string): number {
   for (const ch of s) {
     const code = ch.codePointAt(0) ?? 0;
     // 中日韩表意文字/全角形式 + 全角符号（￥ 等 U+FFE0~EE）
-    if ((code > 0x1100 && code <= 0xff60) || (code >= 0xffe0 && code <= 0xffee)) w += 2;
+    if ((code > 0x1100 && code <= 0xff60) || (code >= 0xffe0 && code <= 0xffee))
+      w += 2;
     else w += 1;
   }
   return w;
@@ -101,7 +108,10 @@ function padStartW(s: string, width: number): string {
 }
 
 // 组装订单小票：初始化 + 居中放大标题 + 单号/时间 + 明细 + 合计 + 走纸切纸
-export function buildOrderPayload(o: ReceiptOrder, encoding: PrinterEncoding = "gbk"): number[] {
+export function buildOrderPayload(
+  o: ReceiptOrder,
+  encoding: PrinterEncoding = "gbk"
+): number[] {
   const lines: string[] = [
     `吉祥${o.orderNo}`,
     "--------------------------------"
@@ -125,7 +135,16 @@ export function buildOrderPayload(o: ReceiptOrder, encoding: PrinterEncoding = "
   lines.push("--------------------------------");
   // 合计：总价右对齐到纸宽（与明细小计同列），按价格宽度动态留空，超长不换行
   const totalStr = `￥${(o.total / 100).toFixed(1)}`;
-  lines.push(padEndW("合计", Math.max(32 - displayWidth(totalStr), 4)) + totalStr);
+  lines.push(
+    padEndW("合计", Math.max(32 - displayWidth(totalStr), 4)) + totalStr
+  );
+  // 实付与合计不同时补一行，便于对账
+  if (o.paid && o.paid !== o.total) {
+    const paidStr = `￥${(o.paid / 100).toFixed(1)}`;
+    lines.push(
+      padEndW("实付", Math.max(32 - displayWidth(paidStr), 4)) + paidStr
+    );
+  }
   lines.push(padEndW(`共 ${o.count} 件`, 24));
 
   const parts: Uint8Array[] = [
@@ -219,15 +238,22 @@ function sppCall<T>(
   timeoutMs = 15000
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("蓝牙操作超时")), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error("蓝牙操作超时")),
+      timeoutMs
+    );
     run(
-      (v) => {
+      v => {
         clearTimeout(timer);
         resolve(v);
       },
-      (e) => {
+      e => {
         clearTimeout(timer);
-        reject(new Error(typeof e === "string" ? e : ((e as any)?.message || String(e))));
+        reject(
+          new Error(
+            typeof e === "string" ? e : (e as any)?.message || String(e)
+          )
+        );
       }
     );
   });
@@ -244,7 +270,9 @@ async function ensureBtPermission(): Promise<void> {
     const msg = String((e as any)?.message || e || "");
     if (/BLE is not supported/i.test(msg)) return; // 无 BLE 的设备无法经此渠道授权，只能直接尝试
     if (/permission/i.test(msg)) {
-      throw new Error("蓝牙权限未授予，请在系统设置里允许本应用的「附近设备」权限后重试");
+      throw new Error(
+        "蓝牙权限未授予，请在系统设置里允许本应用的「附近设备」权限后重试"
+      );
     }
     throw e;
   }
@@ -258,7 +286,9 @@ export async function sppList(): Promise<SppDevice[]> {
 
 // 经典蓝牙搜索：扫描附近「未配对」设备（不返回已保存的设备）
 // onDevice 每发现一个新设备回调一次；扫描结束（约 12 秒）时 resolve 完整列表
-export async function sppDiscover(onDevice?: (d: SppDevice) => void): Promise<SppDevice[]> {
+export async function sppDiscover(
+  onDevice?: (d: SppDevice) => void
+): Promise<SppDevice[]> {
   await ensureBtPermission();
   const api = sppApi();
   const found = new Map<string, SppDevice>();
@@ -270,7 +300,10 @@ export async function sppDiscover(onDevice?: (d: SppDevice) => void): Promise<Sp
   };
   api.setDeviceDiscoveredListener(emit);
   try {
-    const list = await sppCall<SppDevice[]>((ok, fail) => api.discoverUnpaired(ok, fail), 30000);
+    const list = await sppCall<SppDevice[]>(
+      (ok, fail) => api.discoverUnpaired(ok, fail),
+      30000
+    );
     list?.forEach(emit);
     return Array.from(found.values());
   } finally {
@@ -283,28 +316,33 @@ export async function sppDiscover(onDevice?: (d: SppDevice) => void): Promise<Sp
 }
 
 // 经典蓝牙打印：连接 → 写入 → 等排空 → 断开，返回设备名
-export async function sppPrint(device: SppDevice, payload: number[]): Promise<string> {
+export async function sppPrint(
+  device: SppDevice,
+  payload: number[]
+): Promise<string> {
   await ensureBtPermission(); // connect 同样需要 BLUETOOTH_CONNECT，缺失会闪退
   const api = sppApi();
   await sppCall<void>((ok, fail) => api.connect(device.address, ok, fail));
   try {
     // 连接回调刚返回时底层通道未必就绪，稍等再写，减少首包丢失
-    await new Promise((r) => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 150));
     // 插件的 write 是「入队即 success」（BluetoothSerial.java:128-132），此时数据
     // 还在队列里没发到打印机，立刻 disconnect 会把 socket 关掉 → 提示已发送但不打印。
     // 分块写入 + 按包大小等排空（SPP 速率远高于此，够用），再断开。
     const chunkSize = 512;
     const drainMs = Math.min(1000, 300 + Math.ceil(payload.length / 8));
     for (let off = 0; off < payload.length; off += chunkSize) {
-      if (off > 0) await new Promise((r) => setTimeout(r, 100));
+      if (off > 0) await new Promise(r => setTimeout(r, 100));
       const slice = new Uint8Array(payload.slice(off, off + chunkSize));
       await sppCall<void>((ok, fail) => api.write(slice.buffer, ok, fail));
     }
-    await new Promise((r) => setTimeout(r, drainMs));
+    await new Promise(r => setTimeout(r, drainMs));
     return device.name || "未知设备";
   } finally {
     // 尽力断开，失败忽略
-    sppCall<void>((ok, fail) => api.disconnect(ok, fail), 3000).catch(() => undefined);
+    sppCall<void>((ok, fail) => api.disconnect(ok, fail), 3000).catch(
+      () => undefined
+    );
   }
 }
 
@@ -319,12 +357,19 @@ interface BleService {
 }
 interface BleApi {
   initialize(o?: { androidNeverForLocation?: boolean }): Promise<void>;
-  requestDevice(o?: Record<string, unknown>): Promise<{ deviceId: string; name?: string }>;
+  requestDevice(
+    o?: Record<string, unknown>
+  ): Promise<{ deviceId: string; name?: string }>;
   connect(o: { deviceId: string }): Promise<void>;
   disconnect(o: { deviceId: string }): Promise<void>;
   getServices(o: { deviceId: string }): Promise<{ services: BleService[] }>;
   getMtu(o: { deviceId: string }): Promise<{ value: number }>;
-  write(o: { deviceId: string; service: string; characteristic: string; value: string }): Promise<void>;
+  write(o: {
+    deviceId: string;
+    service: string;
+    characteristic: string;
+    value: string;
+  }): Promise<void>;
   writeWithoutResponse(o: {
     deviceId: string;
     service: string;
@@ -332,13 +377,17 @@ interface BleApi {
     value: string;
   }): Promise<void>;
   // 蓝牙搜索
-  addListener(event: string, cb: (r: any) => void): Promise<{ remove(): Promise<void> }>;
+  addListener(
+    event: string,
+    cb: (r: any) => void
+  ): Promise<{ remove(): Promise<void> }>;
   requestLEScan(o: Record<string, unknown>): Promise<void>;
   stopLEScan(): Promise<void>;
 }
 
 function bleApi(): BleApi {
-  const api = (window as unknown as { Capacitor?: any }).Capacitor?.Plugins?.BluetoothLe;
+  const api = (window as unknown as { Capacitor?: any }).Capacitor?.Plugins
+    ?.BluetoothLe;
   if (!api) throw new Error("BLE 插件未加载，请执行 npx cap sync 后重启应用");
   return api;
 }
@@ -355,19 +404,27 @@ export async function blePrint(payload: number[]): Promise<string> {
 }
 
 // 连接指定 BLE 设备并打印（用于搜索列表点击打印），返回设备名
-export async function blePrintTo(deviceId: string, payload: number[], name = ""): Promise<string> {
+export async function blePrintTo(
+  deviceId: string,
+  payload: number[],
+  name = ""
+): Promise<string> {
   const api = bleApi();
   await api.connect({ deviceId });
   try {
     // GATT 服务发现常滞后于连接返回（打印机有时要几百毫秒才暴露特征），
     // 立即 getServices 会拿到空/不全的列表 → 重试几次直到找到可写特征
-    let target: { service: string; characteristic: string; useResponse: boolean } | null = null;
+    let target: {
+      service: string;
+      characteristic: string;
+      useResponse: boolean;
+    } | null = null;
     let svcCount = 0;
     for (let i = 0; i < 6 && !target; i++) {
       const { services } = await api.getServices({ deviceId });
       svcCount = services?.length ?? 0;
       target = findWritable(services ?? []);
-      if (!target) await new Promise((r) => setTimeout(r, 300));
+      if (!target) await new Promise(r => setTimeout(r, 300));
     }
     if (!target) {
       throw new Error(
@@ -415,7 +472,9 @@ export interface BleScanDevice {
 
 // BLE 搜索：开始扫描附近广播设备（不含已保存配对关系也能发现）
 // 返回停止函数；onDevice 每发现一个新设备回调一次
-export async function bleScanStart(onDevice: (d: BleScanDevice) => void): Promise<() => Promise<void>> {
+export async function bleScanStart(
+  onDevice: (d: BleScanDevice) => void
+): Promise<() => Promise<void>> {
   const api = bleApi();
   const seen = new Set<string>();
   const sub = await api.addListener("onScanResult", (r: any) => {
@@ -423,10 +482,18 @@ export async function bleScanStart(onDevice: (d: BleScanDevice) => void): Promis
     const id: string = dev.deviceId ?? dev.id ?? "";
     if (!id || seen.has(id)) return;
     seen.add(id);
-    onDevice({ deviceId: id, name: r.localName || dev.name || "", rssi: r.rssi });
+    onDevice({
+      deviceId: id,
+      name: r.localName || dev.name || "",
+      rssi: r.rssi
+    });
   });
   try {
-    await api.requestLEScan({ services: [], allowDuplicates: false, scanMode: 2 });
+    await api.requestLEScan({
+      services: [],
+      allowDuplicates: false,
+      scanMode: 2
+    });
   } catch (e) {
     await sub.remove().catch(() => undefined);
     throw e;
@@ -441,9 +508,14 @@ export async function bleScanStart(onDevice: (d: BleScanDevice) => void): Promis
 function findWritable(services: BleService[]) {
   for (const svc of services) {
     for (const c of svc.characteristics) {
-      if (c.properties?.write) return { service: svc.uuid, characteristic: c.uuid, useResponse: true };
+      if (c.properties?.write)
+        return { service: svc.uuid, characteristic: c.uuid, useResponse: true };
       if (c.properties?.writeWithoutResponse)
-        return { service: svc.uuid, characteristic: c.uuid, useResponse: false };
+        return {
+          service: svc.uuid,
+          characteristic: c.uuid,
+          useResponse: false
+        };
     }
   }
   return null;
@@ -475,13 +547,20 @@ const PRINTER_SERVICES = [
 const webDevices = new Map<string, any>();
 
 // 弹出 Web Bluetooth 设备选择框，返回选中设备（同时缓存以便打印）
-export async function webBluetoothPick(): Promise<{ deviceId: string; name: string }> {
+export async function webBluetoothPick(): Promise<{
+  deviceId: string;
+  name: string;
+}> {
   const bluetooth = (navigator as Navigator & { bluetooth?: any }).bluetooth;
   if (!bluetooth) {
-    throw new Error("当前环境不支持 Web Bluetooth（需 Chrome/Edge/Chromium 内核）");
+    throw new Error(
+      "当前环境不支持 Web Bluetooth（需 Chrome/Edge/Chromium 内核）"
+    );
   }
   if (!window.isSecureContext) {
-    throw new Error("页面不在安全上下文：改用 file:// 或 localhost 加载即可，无需 HTTPS");
+    throw new Error(
+      "页面不在安全上下文：改用 file:// 或 localhost 加载即可，无需 HTTPS"
+    );
   }
 
   const device = await bluetooth.requestDevice({
@@ -493,7 +572,10 @@ export async function webBluetoothPick(): Promise<{ deviceId: string; name: stri
 }
 
 // 向已选择的 Web Bluetooth 设备打印
-export async function webBluetoothPrintTo(deviceId: string, payload: number[]): Promise<string> {
+export async function webBluetoothPrintTo(
+  deviceId: string,
+  payload: number[]
+): Promise<string> {
   const device = webDevices.get(deviceId);
   if (!device) {
     // 没缓存（如刷新过页面）则重新弹选择框
@@ -504,7 +586,8 @@ export async function webBluetoothPrintTo(deviceId: string, payload: number[]): 
   const server = await device.gatt.connect();
   try {
     const ch = await findWritableChar(server);
-    if (!ch) throw new Error("已连接但未找到可写服务特征，请确认这是 BLE 小票机");
+    if (!ch)
+      throw new Error("已连接但未找到可写服务特征，请确认这是 BLE 小票机");
 
     const bytes = new Uint8Array(payload);
     const CHUNK = 180; // BLE 单包容量有限
@@ -544,7 +627,8 @@ export function describeError(e: any): string {
   const name = e?.name;
   const msg = String(e?.message || e || "");
   if (name === "NotFoundError" && /cancel/i.test(msg)) return "已取消选择设备";
-  if (name === "NotFoundError") return "未发现蓝牙设备，请确认打印机已开机并进入配对模式";
+  if (name === "NotFoundError")
+    return "未发现蓝牙设备，请确认打印机已开机并进入配对模式";
   if (name === "SecurityError") {
     return "安全限制：请确认页面以 file:// 或 localhost 加载（无需 HTTPS），且由点击按钮触发";
   }

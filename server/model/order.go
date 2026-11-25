@@ -13,6 +13,9 @@ type Order struct {
 	// 合计金额，单位：分（1850 = 18.50 元）
 	Total int `json:"total" gorm:"not null;default:0"`
 
+	// 实付金额，单位：分；0 表示未单独记录（实付 = 合计），结单时可手填
+	Paid int `json:"paid" gorm:"not null;default:0"`
+
 	// 商品总件数
 	Count int `json:"count" gorm:"not null;default:0"`
 
