@@ -152,7 +152,7 @@
                       g.name
                     }}</div>
                     <div class="goods-price text-negative text-weight-bold">
-                      ¥{{ (g.price / 100).toFixed(2) }}
+                      {{ (g.price / 100).toFixed(2) }}
                     </div>
                   </div>
                   <div class="goods-meta text-caption text-grey-7">
