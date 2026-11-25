@@ -967,7 +967,7 @@
               <q-card-section class="column q-gutter-sm q-pt-none">
                 <template v-if="!accessNewUrl">
                   <q-select
-                    v-model="accessExpireDays"
+                    v-model="accessExpireHours"
                     :options="accessExpireOptions"
                     label="有效期"
                     outlined
@@ -1036,9 +1036,9 @@
                 </div>
                 <q-btn
                   color="primary"
-                  label="复制链接"
+                  label="保存图片"
                   unelevated
-                  @click="copyText(accessQrUrl)"
+                  @click="saveAccessQrImage"
                 />
               </q-card-section>
               <q-card-actions align="right">
@@ -2534,18 +2534,21 @@ const accessTokens = ref<AccessTokenItem[]>([]);
 const accessSaving = ref(false);
 const accessTokenDlg = ref(false);
 const accessTokenCreating = ref(false);
-const accessExpireDays = ref(7);
+const accessExpireHours = ref(24);
 const accessNewUrl = ref("");
 const accessQrDlg = ref(false);
 const accessQrUrl = ref("");
 const accessQrImage = ref("");
 
 const accessExpireOptions = [
-  { label: "1 天", value: 1 },
-  { label: "7 天", value: 7 },
-  { label: "30 天", value: 30 },
-  { label: "90 天", value: 90 },
-  { label: "1 年", value: 365 },
+  { label: "2 小时", value: 2 },
+  { label: "6 小时", value: 6 },
+  { label: "12 小时", value: 12 },
+  { label: "1 天", value: 24 },
+  { label: "7 天", value: 168 },
+  { label: "30 天", value: 720 },
+  { label: "90 天", value: 2160 },
+  { label: "1 年", value: 8760 },
   { label: "永久有效", value: 0 }
 ];
 
@@ -2575,7 +2578,7 @@ async function saveAccess() {
 }
 
 function openAccessTokenDlg() {
-  accessExpireDays.value = 7;
+  accessExpireHours.value = 24;
   accessNewUrl.value = "";
   accessTokenDlg.value = true;
 }
@@ -2597,12 +2600,40 @@ function showAccessQr(token: string) {
   accessQrDlg.value = true;
 }
 
+// 保存二维码为 PNG 图片（转成位图后触发浏览器下载）
+async function saveAccessQrImage() {
+  try {
+    const img = new Image();
+    img.src = accessQrImage.value;
+    await img.decode();
+
+    const size = 640;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("当前浏览器不支持画布");
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+
+    const a = document.createElement("a");
+    a.href = canvas.toDataURL("image/png");
+    a.download = "访问二维码.png";
+    a.click();
+    $q.notify({ message: "已保存图片", color: "positive" });
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  }
+}
+
 async function createAccessToken() {
   accessTokenCreating.value = true;
   try {
     const d = await api("/api/access/token/create", {
       method: "POST",
-      body: { expire_days: accessExpireDays.value }
+      body: { expire_hours: accessExpireHours.value }
     });
     accessNewUrl.value = accessUrl(d.token);
     await loadAccess();

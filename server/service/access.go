@@ -80,7 +80,7 @@ func SaveAccessSettings(i SaveAccessSettingsInput) (o SaveAccessSettingsOutput, 
 }
 
 type CreateAccessTokenInput struct {
-	ExpireDays int `json:"expire_days"` // 有效天数，0 表示永久
+	ExpireHours int `json:"expire_hours"` // 有效小时数，0 表示永久
 }
 type CreateAccessTokenOutput struct {
 	ID        int64      `json:"id,string"`
@@ -88,12 +88,12 @@ type CreateAccessTokenOutput struct {
 	ExpiresAt *time.Time `json:"expires_at"`
 }
 
-// CreateAccessToken 生成一个随机访问令牌（48 字节 → 64 位 base64url），可设置有效天数
+// CreateAccessToken 生成一个随机访问令牌（48 字节 → 64 位 base64url），可设置有效小时数
 func CreateAccessToken(i CreateAccessTokenInput) (o CreateAccessTokenOutput, err error) {
 	if db.DB == nil {
 		return o, errors.New("数据库未连接")
 	}
-	if i.ExpireDays < 0 {
+	if i.ExpireHours < 0 {
 		return o, errors.New("有效期不能为负数")
 	}
 
@@ -104,8 +104,8 @@ func CreateAccessToken(i CreateAccessTokenInput) (o CreateAccessTokenOutput, err
 	o.Token = base64.RawURLEncoding.EncodeToString(b[:])
 
 	var exp *time.Time
-	if i.ExpireDays > 0 {
-		t := time.Now().AddDate(0, 0, i.ExpireDays)
+	if i.ExpireHours > 0 {
+		t := time.Now().Add(time.Duration(i.ExpireHours) * time.Hour)
 		exp = &t
 	}
 

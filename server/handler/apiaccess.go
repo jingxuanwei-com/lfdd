@@ -44,7 +44,7 @@ func (h *ApiAccessHandler) Save(c *gin.Context) {
 	})
 }
 
-// TokenCreate 生成访问令牌（body: {"expire_days":7}，0 表示永久）
+// TokenCreate 生成访问令牌（body: {"expire_hours":24}，0 表示永久）
 func (h *ApiAccessHandler) TokenCreate(c *gin.Context) {
 	var req service.CreateAccessTokenInput
 	if err := c.ShouldBindJSON(&req); err != nil {
