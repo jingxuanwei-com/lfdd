@@ -952,6 +952,14 @@
                         <q-btn
                           flat
                           dense
+                          icon="print"
+                          @click="printAccessQr(t.token)"
+                        >
+                          <q-tooltip>用小票机打印二维码</q-tooltip>
+                        </q-btn>
+                        <q-btn
+                          flat
+                          dense
                           color="negative"
                           icon="delete"
                           @click="removeAccessToken(t)"
@@ -1052,6 +1060,36 @@
               </q-card-section>
               <q-card-actions align="right">
                 <q-btn flat label="关闭" v-close-popup />
+              </q-card-actions>
+            </q-card>
+          </q-dialog>
+
+          <!-- 选择小票机打印二维码 -->
+          <q-dialog v-model="accessPrintDlg">
+            <q-card style="min-width: 300px; max-width: 95vw">
+              <q-card-section class="text-h6">选择小票机</q-card-section>
+              <q-list separator>
+                <q-item
+                  v-for="p in printers.filter(x => x.transport === 'bt' && x.kind === 'receipt')"
+                  :key="p.key"
+                  clickable
+                  :disable="accessPrinting"
+                  @click="printAccessQrTo(p)"
+                >
+                  <q-item-section avatar>
+                    <q-icon name="print" />
+                  </q-item-section>
+                  <q-item-section>
+                    <q-item-label>{{ p.name || p.id }}</q-item-label>
+                    <q-item-label caption>
+                      {{ p.conn === "spp" ? "经典蓝牙" : "低功耗蓝牙" }} ·
+                      {{ p.encoding.toUpperCase() }}
+                    </q-item-label>
+                  </q-item-section>
+                </q-item>
+              </q-list>
+              <q-card-actions align="right">
+                <q-btn flat label="取消" v-close-popup />
               </q-card-actions>
             </q-card>
           </q-dialog>
@@ -1337,6 +1375,7 @@ import {
   bleInit,
   blePrintTo,
   bleScanStart,
+  buildQrPayload,
   encodeText,
   isNative,
   sppDiscover,
@@ -2548,6 +2587,9 @@ const accessNewUrl = ref("");
 const accessQrDlg = ref(false);
 const accessQrUrl = ref("");
 const accessQrImage = ref("");
+const accessPrintDlg = ref(false);
+const accessPrintToken = ref("");
+const accessPrinting = ref(false);
 
 const accessExpireOptions = [
   { label: "2 小时", value: 2 },
@@ -2640,6 +2682,41 @@ async function saveAccessQrImage() {
     $q.notify({ message: "已保存图片", color: "positive" });
   } catch (e) {
     $q.notify({ message: describeError(e), color: "negative" });
+  }
+}
+
+// 用小票机打印二维码：选择设备（已保存的小票机，仅蓝牙）
+function printAccessQr(token: string) {
+  const list = printers.value.filter(p => p.transport === "bt" && p.kind === "receipt");
+  if (list.length === 0) {
+    $q.notify({ message: "请先在「打印机」中添加小票机", color: "warning" });
+    return;
+  }
+  accessPrintToken.value = token;
+  if (list.length === 1) {
+    void printAccessQrTo(list[0]!);
+    return;
+  }
+  accessPrintDlg.value = true;
+}
+
+// 发送二维码到指定小票机
+async function printAccessQrTo(p: SavedPrinter) {
+  accessPrinting.value = true;
+  try {
+    const payload = buildQrPayload(accessUrl(accessPrintToken.value), "巴拉巴拉", p.encoding);
+    const name =
+      p.conn === "spp"
+        ? await sppPrint({ address: p.id, name: p.name }, payload)
+        : isNative()
+          ? await blePrintTo(p.id, payload, p.name)
+          : await webBluetoothPrintTo(p.id, payload);
+    accessPrintDlg.value = false;
+    $q.notify({ message: `二维码已发送到「${name}」`, color: "positive" });
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    accessPrinting.value = false;
   }
 }
 

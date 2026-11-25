@@ -151,6 +151,56 @@ export function buildOrderPayload(o: ReceiptOrder, encoding: PrinterEncoding = "
   return Array.from(payload);
 }
 
+// 组装二维码小票：仅二维码 + 一行说明文字 + 走纸切纸（不打印链接地址）
+// 二维码内容按 UTF-8 发送（链接为 ASCII，各编码下字节一致）
+export function buildQrPayload(
+  text: string,
+  caption = "",
+  encoding: PrinterEncoding = "gbk"
+): number[] {
+  const data = new TextEncoder().encode(text);
+  const len = data.length;
+  const storeTotal = len + 3; // pL pH = 数据长度 + 3
+
+  const parts: Uint8Array[] = [
+    new Uint8Array(ESC_INIT),
+    new Uint8Array(ESC_ALIGN_CENTER),
+    // GS ( k 设置二维码：模型 2
+    new Uint8Array([0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]),
+    // GS ( k 模块大小 5 点
+    new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x05]),
+    // GS ( k 纠错等级 M
+    new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31]),
+    // GS ( k 存储二维码数据
+    new Uint8Array([
+      0x1d,
+      0x28,
+      0x6b,
+      storeTotal & 0xff,
+      (storeTotal >> 8) & 0xff,
+      0x31,
+      0x50,
+      0x30
+    ]),
+    data,
+    // GS ( k 打印二维码
+    new Uint8Array([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]),
+    new Uint8Array([0x0a]),
+    ...(caption ? [encodeText(`${caption}\n`, encoding)] : []),
+    new Uint8Array(ESC_FEED),
+    new Uint8Array([0x1d, 0x56, 0x41, 0x03]) // GS V A 3 走纸并切纸
+  ];
+
+  const total = parts.reduce((n, p) => n + p.length, 0);
+  const payload = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) {
+    payload.set(p, offset);
+    offset += p.length;
+  }
+  return Array.from(payload);
+}
+
 // ==================== 原生：经典蓝牙 SPP ====================
 export interface SppDevice {
   address: string;
