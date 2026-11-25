@@ -2579,7 +2579,7 @@ async function saveAccess() {
       method: "POST",
       body: {
         allow_direct: accessForm.allow_direct,
-        site_url: accessForm.site_url.trim()
+        site_url: (accessForm.site_url || "").trim()
       }
     });
     $q.notify({ message: "已保存，立即生效", color: "positive" });
@@ -2598,7 +2598,7 @@ function openAccessTokenDlg() {
 
 // 带令牌的访问链接：优先用配置的网站地址（App 内无法识别站点），留空则用当前地址
 function accessUrl(token: string): string {
-  const site = accessForm.site_url.trim().replace(/\/+$/, "");
+  const site = (accessForm.site_url || "").trim().replace(/\/+$/, "");
   const base = site ? `${site}/` : `${location.origin}${location.pathname}`;
   return `${base}#/?access=${encodeURIComponent(token)}`;
 }
