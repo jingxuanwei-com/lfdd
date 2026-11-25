@@ -935,6 +935,14 @@
                         <q-btn
                           flat
                           dense
+                          icon="qr_code"
+                          @click="showAccessQr(t.token)"
+                        >
+                          <q-tooltip>生成二维码</q-tooltip>
+                        </q-btn>
+                        <q-btn
+                          flat
+                          dense
                           color="negative"
                           icon="delete"
                           @click="removeAccessToken(t)"
@@ -1006,6 +1014,35 @@
                   :loading="accessTokenCreating"
                   @click="createAccessToken"
                 />
+              </q-card-actions>
+            </q-card>
+          </q-dialog>
+
+          <!-- 令牌二维码 -->
+          <q-dialog v-model="accessQrDlg">
+            <q-card style="width: 360px; max-width: 95vw">
+              <q-card-section class="text-h6">扫码访问</q-card-section>
+              <q-card-section class="column items-center q-gutter-sm q-pt-none">
+                <q-img
+                  :src="accessQrImage"
+                  style="width: 280px; height: 280px"
+                  fit="contain"
+                />
+                <div
+                  class="text-caption text-grey-7"
+                  style="word-break: break-all"
+                >
+                  {{ accessQrUrl }}
+                </div>
+                <q-btn
+                  color="primary"
+                  label="复制链接"
+                  unelevated
+                  @click="copyText(accessQrUrl)"
+                />
+              </q-card-section>
+              <q-card-actions align="right">
+                <q-btn flat label="关闭" v-close-popup />
               </q-card-actions>
             </q-card>
           </q-dialog>
@@ -1319,6 +1356,7 @@ import {
   TOKEN_KEY
 } from "@/utils/guest";
 import LinkScanDialog from "@/components/LinkScanDialog.vue";
+import { renderSVG } from "uqr";
 
 const $q = useQuasar();
 
@@ -2498,6 +2536,9 @@ const accessTokenDlg = ref(false);
 const accessTokenCreating = ref(false);
 const accessExpireDays = ref(7);
 const accessNewUrl = ref("");
+const accessQrDlg = ref(false);
+const accessQrUrl = ref("");
+const accessQrImage = ref("");
 
 const accessExpireOptions = [
   { label: "1 天", value: 1 },
@@ -2542,6 +2583,18 @@ function openAccessTokenDlg() {
 // 带令牌的访问链接（hash 路由：https://站点/#/?access=令牌）
 function accessUrl(token: string): string {
   return `${location.origin}${location.pathname}#/?access=${encodeURIComponent(token)}`;
+}
+
+// 生成访问链接二维码（纯前端渲染为 SVG，不依赖第三方服务与异步库）
+function showAccessQr(token: string) {
+  accessQrUrl.value = accessUrl(token);
+  const svg = renderSVG(accessQrUrl.value, {
+    ecc: "M",
+    border: 2,
+    pixelSize: 8
+  });
+  accessQrImage.value = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  accessQrDlg.value = true;
 }
 
 async function createAccessToken() {
