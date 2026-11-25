@@ -26,5 +26,7 @@ func Start() {
 	// 跨域要放在鉴权之前：预检 OPTIONS 请求不带身份，需直接放行
 	Engine.Use(middleware.Cors())
 	Engine.Use(middleware.InitGuard())
+	// 访问令牌拦截：开启访问限制后，未授权请求一律返回伪装的 404
+	Engine.Use(middleware.AccessGuard())
 	log.Println("✅ [Web]核心初始化 加载完成！")
 }

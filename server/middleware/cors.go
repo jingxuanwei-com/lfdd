@@ -37,7 +37,7 @@ func Cors() gin.HandlerFunc {
 			}
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Access-Token")
 		c.Header("Access-Control-Max-Age", "86400")
 
 		// 预检请求直接返回 204，不进入后续鉴权/业务中间件

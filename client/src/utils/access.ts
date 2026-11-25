@@ -23,6 +23,20 @@ export function setAccessToken(token: string) {
   }
 }
 
+// 首次通过链接进入时，把地址里的访问令牌存入本地：
+// 兼容 ?access=xxx 与 hash 模式 #/?access=xxx（hash 不会发给服务端）
+export function captureAccessTokenFromUrl() {
+  const search = new URLSearchParams(window.location.search).get("access");
+  const hash = window.location.hash;
+  const qIndex = hash.indexOf("?");
+  const hashToken =
+    qIndex >= 0
+      ? new URLSearchParams(hash.slice(qIndex + 1)).get("access")
+      : null;
+  const token = (search ?? hashToken ?? "").trim();
+  if (token) setAccessToken(token);
+}
+
 // 校验当前是否可访问受限页面：urlToken 来自地址栏，存在时优先使用并落盘。
 // 返回 true 表示放行。
 export async function resolveAccess(urlToken?: unknown): Promise<boolean> {

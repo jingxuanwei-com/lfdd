@@ -1,5 +1,6 @@
 import { defineBoot } from "#q-app";
 import { apiPath } from "@/utils/api";
+import { captureAccessTokenFromUrl, getAccessToken } from "@/utils/access";
 import {
   activeToken,
   ensureGuestIdentity,
@@ -15,6 +16,9 @@ const PATCHED = "__lfddFetchPatched";
 export default defineBoot(async () => {
   // 先打补丁，保证下面的游客身份申请也会被改写成本后端地址（App 内不是同源）
   patchFetch();
+
+  // 链接首次进入时先把访问令牌落盘，后续游客申请与接口请求才能带上它
+  captureAccessTokenFromUrl();
 
   if (!hasToken()) {
     try {
@@ -49,6 +53,10 @@ function patchFetch() {
       const token = activeToken();
       if (token && !headers.has("Authorization"))
         headers.set("Authorization", `Bearer ${token}`);
+      // 访问令牌：开启访问限制后服务端才放行（未授权返回伪装 404）
+      const access = getAccessToken();
+      if (access && !headers.has("X-Access-Token"))
+        headers.set("X-Access-Token", access);
       return rawFetch(target, { ...init, headers });
     };
 
