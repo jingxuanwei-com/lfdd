@@ -88,15 +88,15 @@
               <div class="text-caption text-grey-7">
                 <template v-if="it.edited === 1">
                   <span class="text-grey-5" style="text-decoration: line-through">
-                    ={{ fmtPrice(it.orig_price) }}
+                    {{ fmtPrice(it.orig_price) }}
                   </span>
                   <span class="text-weight-medium text-negative q-ml-xs">
-                    ={{ fmtPrice(it.price) }}
+                    {{ fmtPrice(it.price) }}
                   </span>
                 </template>
-                <template v-else>={{ fmtPrice(it.price) }}</template>
+                <template v-else>{{ fmtPrice(it.price) }}</template>
               </div>
-              <div class="text-caption text-weight-medium">={{ fmtPrice(it.price * it.qty) }}</div>
+              <div class="text-caption text-weight-medium">{{ fmtPrice(it.price * it.qty) }}</div>
             </div>
             <q-chip v-if="it.edited === 1" dense size="xs" flat color="deep-orange" text-color="white"
               class="q-ma-none">
@@ -206,14 +206,14 @@
               <div class="col">
                 <div class="text-caption ellipsis">{{ r.name }}</div>
                 <div class="text-caption text-grey-6">
-                  原价 ={{ fmtPrice(r.orig) }}
+                  <!-- 原价 ={{ fmtPrice(r.orig) }} -->
                   <span v-if="r.edited" class="text-weight-medium text-negative q-ml-xs">
                     现修改 ={{ fmtPrice(r.initial) }}
                   </span>
                 </div>
                 <!-- 管理员：开启小眼睛后显示进价 -->
                 <div v-if="isAdmin && showCost" class="text-caption text-grey-6">
-                  进 ={{ fmtPrice(goodsCost[r.goods_id] ?? 0) }}
+                  {{ fmtPrice(goodsCost[r.goods_id] ?? 0) }}
                 </div>
               </div>
               <q-input v-model="r.val" type="number" dense outlined class="price-input" :aria-label="`${r.name}新单价`" />
