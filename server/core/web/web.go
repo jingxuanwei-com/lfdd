@@ -6,6 +6,7 @@ import (
 	"server/middleware"
 
 	"github.com/1szt/go-pkg/env"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,6 +26,8 @@ func Start() {
 	Engine.Use(gin.Recovery())
 	// 跨域要放在鉴权之前：预检 OPTIONS 请求不带身份，需直接放行
 	Engine.Use(middleware.Cors())
+	// 响应压缩：JSON 文本压缩后传输；图片/视频本身已压缩，直出路径排除
+	Engine.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithExcludedPaths([]string{"/api/upload/"})))
 	Engine.Use(middleware.InitGuard())
 	// 访问令牌拦截：开启访问限制后，未授权请求一律返回伪装的 404
 	Engine.Use(middleware.AccessGuard())

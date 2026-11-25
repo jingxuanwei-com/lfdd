@@ -5,6 +5,7 @@ go 1.27.3
 require (
 	github.com/1szt/go-pkg v0.0.1
 	github.com/gen2brain/webp v0.6.4
+	github.com/gin-contrib/gzip v1.2.10
 	github.com/gin-gonic/gin v1.12.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.48.0
@@ -49,7 +50,7 @@ require (
 	github.com/ugorji/go/codec v1.3.2 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.9.2 // indirect
 	golang.org/x/arch v0.32.0 // indirect
-	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect

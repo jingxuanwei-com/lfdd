@@ -109,6 +109,8 @@
                 :src="imgSrc(g.image)"
                 :alt="g.name"
                 class="goods-img-clickable"
+                loading="lazy"
+                decoding="async"
                 @click="openViewer(g)"
               />
               <q-icon

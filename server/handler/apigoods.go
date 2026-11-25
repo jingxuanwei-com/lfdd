@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+
 	"server/service"
 
 	"github.com/gin-gonic/gin"
@@ -77,6 +79,16 @@ func (h *ApiGoodsHandler) All(c *gin.Context) {
 			"message": "请求参数错误",
 		})
 		return
+	}
+
+	// 协商缓存：商品数量 + 最近更新时间未变则回 304，浏览器直接复用本地副本
+	if etag, e := service.GetGoodsListVersion(service.GetGoodsListVersionInput{MenuID: req.MenuID}); e == nil {
+		c.Header("ETag", etag)
+		c.Header("Cache-Control", "no-cache")
+		if c.GetHeader("If-None-Match") == etag {
+			c.Status(http.StatusNotModified)
+			return
+		}
 	}
 
 	out, err := service.GetGoodsAll(service.GetGoodsAllInput{

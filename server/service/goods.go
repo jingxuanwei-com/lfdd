@@ -9,6 +9,7 @@ import (
 	"server/model"
 	"strconv"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -153,6 +154,32 @@ func GetGoodsAll(i GetGoodsAllInput) (o GetGoodsAllOutput, err error) {
 		o.List = append(o.List, toGoodsView(g, i.WithCost))
 	}
 	return o, nil
+}
+
+type GetGoodsListVersionInput struct {
+	MenuID int64 // 0 = 全部上架商品
+}
+
+// GetGoodsListVersion 商品列表版本（数量 + 最近更新时间），用于 ETag 协商缓存：
+// 商品增删改、下单扣库存都会刷新 updated_at，版本随之变化
+func GetGoodsListVersion(i GetGoodsListVersionInput) (string, error) {
+	var row struct {
+		Cnt int64
+		Ts  *time.Time
+	}
+	q := db.DB.Model(&model.Goods{}).Where("status = ?", 1)
+	if i.MenuID > 0 {
+		q = q.Where("menu_id = ?", i.MenuID)
+	}
+	if err := q.Select("COUNT(*) AS cnt, MAX(updated_at) AS ts").Scan(&row).Error; err != nil {
+		return "", err
+	}
+
+	var ts int64
+	if row.Ts != nil {
+		ts = row.Ts.Unix()
+	}
+	return fmt.Sprintf(`W/"%d-%d"`, row.Cnt, ts), nil
 }
 
 // toGoodsView 模型转视图，集中一处避免各接口字段遗漏；withCost=false 时不返回进价

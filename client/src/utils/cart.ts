@@ -54,8 +54,15 @@ export const cartTotal = computed(() =>
   cart.value.reduce((s, l) => s + l.price * l.qty, 0)
 );
 
+// id → 数量 映射：点单页每张卡会多次查询，用映射把查找降到 O(1)
+const qtyById = computed(() => {
+  const m: Record<string, number> = {};
+  for (const l of cart.value) m[l.id] = l.qty;
+  return m;
+});
+
 export function lineQty(id: string): number {
-  return cart.value.find(l => l.id === id)?.qty ?? 0;
+  return qtyById.value[id] ?? 0;
 }
 
 // 某分类在购物车里的件数（侧边栏右上角角标）
