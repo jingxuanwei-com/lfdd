@@ -123,7 +123,9 @@
             </div>
             <div class="col">
               <div class="row items-start no-wrap goods-name-row">
-                <div class="goods-name text-weight-medium col">{{ g.name }}</div>
+                <div class="goods-name text-weight-medium col">{{
+                  g.name
+                }}</div>
                 <!-- 管理员：第一行小眼睛开启进价，点进价关闭并复现小眼睛 -->
                 <div
                   v-if="isAdmin"
@@ -137,11 +139,9 @@
                     size="16px"
                     class="cost-eye"
                   />
-                  <span
-                    v-else-if="showCost"
-                    class="goods-cost text-caption"
-                    >{{ fmtPrice(g.cost ?? 0) }}</span
-                  >
+                  <span v-else-if="showCost" class="goods-cost text-caption">{{
+                    fmtPrice(g.cost ?? 0)
+                  }}</span>
                 </div>
               </div>
               <div v-if="g.spec" class="text-caption text-grey-7 ellipsis">{{
@@ -149,9 +149,9 @@
               }}</div>
               <div class="goods-foot row items-center justify-between q-mt-xs">
                 <div class="goods-price-row row items-baseline q-gutter-sm">
-                  <div class="text-negative text-weight-bold"
-                    >{{ fmtPrice(g.price) }}</div
-                  >
+                  <div class="text-negative text-weight-bold">{{
+                    fmtPrice(g.price)
+                  }}</div>
                   <span class="text-caption text-grey-6">
                     {{
                       g.stock === 0
@@ -202,21 +202,6 @@
               </div>
             </div>
           </div>
-
-          <div class="text-center q-pb-md">
-            <q-btn
-              v-if="!searchMode && hasMore"
-              flat
-              dense
-              color="primary"
-              :loading="loadingMore"
-              label="加载更多"
-              @click="loadGoods(false)"
-            />
-            <span v-else-if="!searchMode" class="text-caption text-grey-6"
-              >— 没有更多了 —</span
-            >
-          </div>
         </template>
       </div>
     </div>
@@ -230,9 +215,9 @@
         </div>
         <div class="col q-ml-sm">
           <div class="text-caption" style="line-height: 1">合计</div>
-          <div class="text-weight-bold" style="line-height: 1.2"
-            >{{ fmtPrice(cartTotal) }}</div
-          >
+          <div class="text-weight-bold" style="line-height: 1.2">{{
+            fmtPrice(cartTotal)
+          }}</div>
         </div>
         <q-space />
         <q-icon name="chevron_right" size="22px" />
@@ -242,80 +227,80 @@
          用 q-dialog 承载：App 内返回键由 Quasar 统一拦截关闭预览，不会直接退出 App -->
     <q-dialog v-model="viewerOpen" maximized>
       <div class="viewer-wrap">
-      <q-btn
-        round
-        dense
-        flat
-        icon="close"
-        color="white"
-        class="viewer-close"
-        aria-label="关闭"
-        @click="requestCloseViewer"
-      />
-      <div
-        ref="viewerScroller"
-        class="viewer-scroller"
-        @scroll.passive="onViewerScroll"
-        @pointerdown="onViewerPointerDown"
-        @pointermove="onViewerPointerMove"
-        @pointerup="onViewerPointerUp"
-        @pointerleave="onViewerPointerUp"
-      >
-        <div v-for="m in viewerMedia" :key="mediaKey(m)" class="viewer-slide">
-          <img
-            v-if="m.type === 'image'"
-            :src="mediaSrc(m)"
-            alt=""
-            class="viewer-media"
-            draggable="false"
-          />
-          <video
-            v-else-if="m.type === 'video'"
-            :src="mediaSrc(m)"
-            controls
-            playsinline
-            preload="metadata"
-            class="viewer-media"
-          />
-          <iframe
-            v-else
-            :src="mediaSrc(m)"
-            class="viewer-web"
-            allowfullscreen
-          />
-        </div>
-      </div>
-      <template v-if="viewerMedia.length > 1">
         <q-btn
           round
           dense
           flat
-          icon="chevron_left"
+          icon="close"
           color="white"
-          class="viewer-arrow viewer-arrow-left"
-          aria-label="上一张"
-          @click="goToMedia(viewerIndex - 1)"
+          class="viewer-close"
+          aria-label="关闭"
+          @click="requestCloseViewer"
         />
-        <q-btn
-          round
-          dense
-          flat
-          icon="chevron_right"
-          color="white"
-          class="viewer-arrow viewer-arrow-right"
-          aria-label="下一张"
-          @click="goToMedia(viewerIndex + 1)"
-        />
-        <div class="viewer-dots">
-          <span
-            v-for="(m, i) in viewerMedia"
-            :key="mediaKey(m)"
-            class="viewer-dot"
-            :class="{ active: i === viewerIndex }"
-            @click="goToMedia(i)"
-          />
+        <div
+          ref="viewerScroller"
+          class="viewer-scroller"
+          @scroll.passive="onViewerScroll"
+          @pointerdown="onViewerPointerDown"
+          @pointermove="onViewerPointerMove"
+          @pointerup="onViewerPointerUp"
+          @pointerleave="onViewerPointerUp"
+        >
+          <div v-for="m in viewerMedia" :key="mediaKey(m)" class="viewer-slide">
+            <img
+              v-if="m.type === 'image'"
+              :src="mediaSrc(m)"
+              alt=""
+              class="viewer-media"
+              draggable="false"
+            />
+            <video
+              v-else-if="m.type === 'video'"
+              :src="mediaSrc(m)"
+              controls
+              playsinline
+              preload="metadata"
+              class="viewer-media"
+            />
+            <iframe
+              v-else
+              :src="mediaSrc(m)"
+              class="viewer-web"
+              allowfullscreen
+            />
+          </div>
         </div>
-      </template>
+        <template v-if="viewerMedia.length > 1">
+          <q-btn
+            round
+            dense
+            flat
+            icon="chevron_left"
+            color="white"
+            class="viewer-arrow viewer-arrow-left"
+            aria-label="上一张"
+            @click="goToMedia(viewerIndex - 1)"
+          />
+          <q-btn
+            round
+            dense
+            flat
+            icon="chevron_right"
+            color="white"
+            class="viewer-arrow viewer-arrow-right"
+            aria-label="下一张"
+            @click="goToMedia(viewerIndex + 1)"
+          />
+          <div class="viewer-dots">
+            <span
+              v-for="(m, i) in viewerMedia"
+              :key="mediaKey(m)"
+              class="viewer-dot"
+              :class="{ active: i === viewerIndex }"
+              @click="goToMedia(i)"
+            />
+          </div>
+        </template>
       </div>
     </q-dialog>
   </q-page>
@@ -394,23 +379,16 @@ interface GoodsItem {
   status: number;
 }
 
-const PAGE_SIZE = 20;
-
 const menus = ref<SidebarMenu[]>([]);
 const activeMenuId = ref(pagePos.activeMenuId); // 恢复上次选中的分类
 const goods = ref<GoodsItem[]>([]);
-const total = ref(0);
-const page = ref(1);
 const loadingGoods = ref(false);
-const loadingMore = ref(false);
 const errorMsg = ref("");
 
 const sideRef = ref<HTMLElement | null>(null);
 const mainRef = ref<HTMLElement | null>(null);
 
 let reqSeq = 0; // 递增序号，丢弃切换分类时已过期的响应
-
-const hasMore = computed(() => goods.value.length < total.value);
 
 // ================= 本地模糊搜索（一次性拉全量上架商品，输入即时过滤） =================
 // q-input 的 clearable 清空时会把值置为 null，这里兼容 null
@@ -454,7 +432,7 @@ watch(searchText, async v => {
     if (mainRef.value) mainRef.value.scrollTop = 0;
     await loadAllGoods();
   } else {
-    await loadGoods(true);
+    await loadGoods();
   }
 });
 
@@ -663,40 +641,26 @@ async function loadMenus() {
   }
 }
 
-// 商品列表（reset=true 重新第一页，false 加载更多）
-async function loadGoods(reset: boolean) {
+// 商品列表：按当前分类一次性取全部上架商品（数量有限，切分类即刷新，滚动无停顿）
+async function loadGoods() {
   const seq = ++reqSeq;
-  if (reset) {
-    page.value = 1;
-    errorMsg.value = "";
-    loadingGoods.value = true;
-  } else {
-    loadingMore.value = true;
-  }
+  errorMsg.value = "";
+  loadingGoods.value = true;
 
   try {
     const data = await fetchJson(
-      `/api/goods/page?menu_id=${activeMenuId.value}&page=${page.value}&page_size=${PAGE_SIZE}`
+      `/api/goods/all?menu_id=${activeMenuId.value}`
     );
     if (seq !== reqSeq) return; // 已有更新的请求，丢弃本次结果
 
-    const list: GoodsItem[] = Array.isArray(data.list) ? data.list : [];
-    goods.value = reset ? list : [...goods.value, ...list];
-    total.value = typeof data.total === "number" ? data.total : 0;
-    if (list.length > 0) {
-      page.value += 1;
-    }
+    goods.value = Array.isArray(data.list) ? data.list : [];
   } catch (e) {
     if (seq !== reqSeq) return;
-    if (reset) {
-      goods.value = [];
-      total.value = 0;
-    }
+    goods.value = [];
     errorMsg.value = `加载失败：${describeError(e)}，请确认后端服务已启动`;
   } finally {
     if (seq === reqSeq) {
       loadingGoods.value = false;
-      loadingMore.value = false;
     }
   }
 }
@@ -707,7 +671,7 @@ function selectMenu(id: string) {
   if (searchText.value) {
     searchText.value = ""; // 退出搜索态，watch 会按新分类重新加载
   } else {
-    void loadGoods(true);
+    void loadGoods();
   }
   // 切分类后商品区回到顶部
   if (mainRef.value) mainRef.value.scrollTop = 0;
@@ -716,7 +680,7 @@ function selectMenu(id: string) {
 onMounted(async () => {
   window.addEventListener("keydown", onViewerKey);
   window.addEventListener("popstate", onViewerPopState);
-  await Promise.all([loadMenus(), loadGoods(true), loadMe()]);
+  await Promise.all([loadMenus(), loadGoods(), loadMe()]);
   // 数据渲染后恢复上次的滚动位置
   await nextTick();
   if (sideRef.value) sideRef.value.scrollTop = pagePos.side;
@@ -928,7 +892,9 @@ onBeforeUnmount(() => {
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.4);
   cursor: pointer;
-  transition: width 0.2s, background 0.2s;
+  transition:
+    width 0.2s,
+    background 0.2s;
 
   &.active {
     width: 16px;

@@ -131,16 +131,21 @@ func GetGoodsPage(i GetGoodsPageInput) (o GetGoodsPageOutput, err error) {
 
 // ------------------------ GetGoodsAll 全部上架商品 ------------------------
 type GetGoodsAllInput struct {
-	WithCost bool `json:"-"` // true = 返回进价（仅管理员）
+	MenuID   int64 `json:"-"` // 0 = 全部上架商品；>0 = 仅该菜单下
+	WithCost bool  `json:"-"` // true = 返回进价（仅管理员）
 }
 type GetGoodsAllOutput struct {
 	List []GoodsView `json:"list"`
 }
 
-// GetGoodsAll 全部上架商品：供前端一次性拉取后本地模糊搜索（数据量小，避免逐页拉取）
+// GetGoodsAll 全部上架商品：供前端一次性拉取（点单页按分类整组加载、搜索本地过滤，数据量小，避免逐页拉取）
 func GetGoodsAll(i GetGoodsAllInput) (o GetGoodsAllOutput, err error) {
 	var goods []model.Goods
-	if err = db.DB.Where("status = ?", 1).Order("sort ASC, id DESC").Find(&goods).Error; err != nil {
+	q := db.DB.Where("status = ?", 1)
+	if i.MenuID > 0 {
+		q = q.Where("menu_id = ?", i.MenuID)
+	}
+	if err = q.Order("sort ASC, id DESC").Find(&goods).Error; err != nil {
 		return o, err
 	}
 	o.List = make([]GoodsView, 0, len(goods))

@@ -66,9 +66,23 @@ func (h *ApiGoodsHandler) Page(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-// All 全部上架商品（前端一次性拉取后本地模糊搜索）
+// All 全部上架商品（点单页按分类整组返回，前端无需分页；搜索也复用它一次性拉取）
+// query: menu_id（可选，0/不传 = 全部）
 func (h *ApiGoodsHandler) All(c *gin.Context) {
-	out, err := service.GetGoodsAll(service.GetGoodsAllInput{WithCost: isAdminRequest(c)})
+	var req struct {
+		MenuID int64 `form:"menu_id"`
+	}
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(400, gin.H{
+			"message": "请求参数错误",
+		})
+		return
+	}
+
+	out, err := service.GetGoodsAll(service.GetGoodsAllInput{
+		MenuID:   req.MenuID,
+		WithCost: isAdminRequest(c),
+	})
 	if err != nil {
 		c.JSON(500, gin.H{
 			"message": "服务器内部错误",
