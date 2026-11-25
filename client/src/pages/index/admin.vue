@@ -2685,29 +2685,65 @@ function showAccessQr(token: string) {
 // 保存二维码为 PNG 图片（转成位图后触发浏览器下载）
 async function saveAccessQrImage() {
   try {
-    const img = new Image();
-    img.src = accessQrImage.value;
-    await img.decode();
-
-    const size = 640;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("当前浏览器不支持画布");
-
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, size, size);
-    ctx.drawImage(img, 0, 0, size, size);
-
+    const dataUrl = await accessQrPngDataUrl();
+    if (isNative()) {
+      await saveImageInApp(dataUrl);
+      return;
+    }
     const a = document.createElement("a");
-    a.href = canvas.toDataURL("image/png");
+    a.href = dataUrl;
     a.download = "访问二维码.png";
     a.click();
     $q.notify({ message: "已保存图片", color: "positive" });
   } catch (e) {
     $q.notify({ message: describeError(e), color: "negative" });
   }
+}
+
+// 把二维码渲染成 640×640 的 PNG dataURL
+async function accessQrPngDataUrl(): Promise<string> {
+  const img = new Image();
+  img.src = accessQrImage.value;
+  await img.decode();
+
+  const size = 640;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("当前浏览器不支持画布");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(img, 0, 0, size, size);
+  return canvas.toDataURL("image/png");
+}
+
+// App 内保存：WebView 不支持 a[download]，先写入缓存再调系统面板保存/发送
+async function saveImageInApp(dataUrl: string) {
+  const cap = (
+    window as unknown as {
+      Capacitor?: { Plugins?: Record<string, any> };
+    }
+  ).Capacitor;
+  const Filesystem = cap?.Plugins?.Filesystem;
+  const Share = cap?.Plugins?.Share;
+  if (!Filesystem || !Share) {
+    throw new Error("当前 App 版本不支持保存图片，请更新 App");
+  }
+
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  const file = await Filesystem.writeFile({
+    path: `访问二维码-${Date.now()}.png`,
+    data: base64,
+    directory: "CACHE"
+  });
+  await Share.share({
+    title: "访问二维码",
+    url: file.uri,
+    dialogTitle: "保存二维码"
+  });
+  $q.notify({ message: "请在系统面板中选择保存位置", color: "positive" });
 }
 
 // 用小票机打印二维码：选择设备（已保存的小票机，仅蓝牙）
