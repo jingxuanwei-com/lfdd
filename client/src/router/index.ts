@@ -41,13 +41,26 @@ export default defineRouter((/* { store, ssrContext } */) => {
 
   // 访问限制守卫：开启后除 /admin（配置入口）与 /denied（提示页）外，
   // 其余页面都必须持有效访问令牌（URL 参数 ?access=xxx 或本地已保存）。
+  // App（Capacitor 原生）内置前端资源、不对外暴露，未授权时直接回 /admin 登录；
+  // 网页端则跳转未授权提示页。
   Router.beforeEach(async to => {
     if (to.path === "/admin" || to.path === "/denied") return true;
 
     // hash 模式下参数在 #/ 之后；兼容写在 ? 后的形式
-    const searchToken = new URLSearchParams(window.location.search).get("access");
+    const searchToken = new URLSearchParams(window.location.search).get(
+      "access"
+    );
     const allowed = await resolveAccess(to.query.access ?? searchToken);
-    return allowed ? true : { path: "/denied" };
+    if (allowed) return true;
+
+    const isNativeApp = Boolean(
+      (
+        window as unknown as {
+          Capacitor?: { isNativePlatform?: () => boolean };
+        }
+      ).Capacitor?.isNativePlatform?.()
+    );
+    return { path: isNativeApp ? "/admin" : "/denied" };
   });
 
   return Router;

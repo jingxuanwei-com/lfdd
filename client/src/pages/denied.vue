@@ -3,7 +3,7 @@
     <div>
       <q-icon name="lock" size="72px" color="grey-6" />
 
-      <div class="text-h5 q-mt-md">拒绝访问</div>
+      <div class="text-h5 q-mt-md">授权失败</div>
 
       <!-- <div class="text-body2 text-grey-7 q-mt-sm">
         本站已开启访问限制，请使用带有效访问令牌的链接进入。
