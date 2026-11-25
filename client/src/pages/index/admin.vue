@@ -1,5 +1,5 @@
 <template>
-  <q-page class="q-pa-md">
+  <q-page class="q-pa-md admin-page">
     <!-- ================= 未登录：登录（注册已关闭，初始账号见服务端启动日志） ================= -->
     <div v-if="!token" class="flex flex-center" style="min-height: 60vh">
       <q-card style="width: 360px; max-width: 95vw">
@@ -70,12 +70,7 @@
         <q-tab name="print" label="设备管理" icon="print" />
         <q-tab v-if="isAdmin" name="users" label="用户管理" icon="people" />
         <q-tab v-if="isAdmin" name="ai" label="AI 设置" icon="smart_toy" />
-        <q-tab
-          v-if="isAdmin"
-          name="access"
-          label="访问管理"
-          icon="vpn_key"
-        />
+        <q-tab v-if="isAdmin" name="access" label="访问管理" icon="vpn_key" />
       </q-tabs>
       <q-separator />
 
@@ -880,7 +875,8 @@
                   dense
                 />
                 <div class="text-caption text-grey-7">
-                  开启时任何人都可直接访问；关闭后除 /admin 页面与已登录用户外，必须使用带有效令牌的链接才能访问。
+                  开启时任何人都可直接访问；关闭后除 /admin
+                  页面与已登录用户外，必须使用带有效令牌的链接才能访问。
                 </div>
                 <q-input
                   v-model="accessForm.site_url"
@@ -919,7 +915,11 @@
               </q-card-section>
               <q-card-section class="q-pt-none">
                 <q-list v-if="accessTokens.length > 0" separator>
-                  <q-item v-for="t in accessTokens" :key="t.id">
+                  <q-item
+                    v-for="t in accessTokens"
+                    :key="t.id"
+                    class="access-token-item"
+                  >
                     <q-item-section>
                       <q-item-label
                         class="ellipsis"
@@ -998,7 +998,8 @@
                 </template>
                 <template v-else>
                   <div class="text-caption text-grey-7">
-                    令牌已生成，复制下面的链接分享给对方（链接中的 access 参数即访问凭证）：
+                    令牌已生成，复制下面的链接分享给对方（链接中的 access
+                    参数即访问凭证）：
                   </div>
                   <q-input
                     :model-value="accessNewUrl"
@@ -1042,7 +1043,8 @@
               <q-card-section class="column items-center q-gutter-sm q-pt-none">
                 <q-img
                   :src="accessQrImage"
-                  style="width: 280px; height: 280px"
+                  ratio="1"
+                  style="width: 280px; max-width: 100%"
                   fit="contain"
                 />
                 <div
@@ -1066,11 +1068,13 @@
 
           <!-- 选择小票机打印二维码 -->
           <q-dialog v-model="accessPrintDlg">
-            <q-card style="min-width: 300px; max-width: 95vw">
+            <q-card style="width: 300px; max-width: 95vw">
               <q-card-section class="text-h6">选择小票机</q-card-section>
               <q-list separator>
                 <q-item
-                  v-for="p in printers.filter(x => x.transport === 'bt' && x.kind === 'receipt')"
+                  v-for="p in printers.filter(
+                    x => x.transport === 'bt' && x.kind === 'receipt'
+                  )"
                   :key="p.key"
                   clickable
                   :disable="accessPrinting"
@@ -1098,7 +1102,7 @@
 
       <!-- ============ 添加 / 编辑打印机 ============ -->
       <q-dialog v-model="devDlg" persistent>
-        <q-card style="min-width: 320px; max-width: 95vw">
+        <q-card style="width: 320px; max-width: 95vw">
           <q-card-section class="text-subtitle1">
             {{ devForm.editing ? "编辑打印机" : "添加打印机" }}
           </q-card-section>
@@ -1181,7 +1185,7 @@
 
       <!-- ============ 新建 / 编辑商品 ============ -->
       <q-dialog v-model="goodsDlg">
-        <q-card style="min-width: 360px; max-width: 95vw">
+        <q-card style="width: 360px; max-width: 95vw">
           <q-card-section class="text-subtitle1">
             {{ goodsForm.id ? "编辑商品" : "新建商品" }}
           </q-card-section>
@@ -1338,7 +1342,7 @@
 
       <!-- ============ 新建 / 编辑分类 ============ -->
       <q-dialog v-model="menuDlg">
-        <q-card style="min-width: 300px; max-width: 95vw">
+        <q-card style="width: 300px; max-width: 95vw">
           <q-card-section class="text-subtitle1">
             {{ menuForm.id ? "编辑分类" : "新建分类" }}
           </q-card-section>
@@ -1694,7 +1698,10 @@ function promptMediaUrl() {
 // 第三方链接：只存链接，不下载；按扩展名判断图片/视频，其余按网页嵌入
 function addMediaUrl(u: string) {
   if (!/^https?:\/\//i.test(u)) {
-    $q.notify({ message: "请输入 http/https 开头的完整链接", color: "negative" });
+    $q.notify({
+      message: "请输入 http/https 开头的完整链接",
+      color: "negative"
+    });
     return;
   }
   const path = u.split(/[?#]/)[0]!.toLowerCase();
@@ -2687,7 +2694,9 @@ async function saveAccessQrImage() {
 
 // 用小票机打印二维码：选择设备（已保存的小票机，仅蓝牙）
 function printAccessQr(token: string) {
-  const list = printers.value.filter(p => p.transport === "bt" && p.kind === "receipt");
+  const list = printers.value.filter(
+    p => p.transport === "bt" && p.kind === "receipt"
+  );
   if (list.length === 0) {
     $q.notify({ message: "请先在「打印机」中添加小票机", color: "warning" });
     return;
@@ -2704,7 +2713,11 @@ function printAccessQr(token: string) {
 async function printAccessQrTo(p: SavedPrinter) {
   accessPrinting.value = true;
   try {
-    const payload = buildQrPayload(accessUrl(accessPrintToken.value), "巴拉巴拉", p.encoding);
+    const payload = buildQrPayload(
+      accessUrl(accessPrintToken.value),
+      "巴拉巴拉",
+      p.encoding
+    );
     const name =
       p.conn === "spp"
         ? await sppPrint({ address: p.id, name: p.name }, payload)
@@ -2798,6 +2811,7 @@ onMounted(async () => {
 
 <style scoped lang="scss">
 .admin-wrap {
+  width: 100%;
   max-width: 960px;
   margin: 0 auto;
 }
@@ -2944,6 +2958,21 @@ onMounted(async () => {
 }
 
 @media (max-width: 599px) {
+  /* 小屏：压缩页面留白；令牌文本换行显示，操作按钮保持在右侧 */
+  .admin-page {
+    padding: 12px !important;
+  }
+
+  .access-token-item :deep(.q-item__label.ellipsis) {
+    white-space: normal;
+    word-break: break-all;
+    font-size: 12px;
+  }
+
+  .access-token-item :deep(.q-item__section--side) {
+    padding-left: 4px;
+  }
+
   .goods-thumb {
     width: 34px;
     height: 34px;
