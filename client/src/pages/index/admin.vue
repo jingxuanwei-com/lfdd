@@ -882,6 +882,15 @@
                 <div class="text-caption text-grey-7">
                   开启时任何人都可直接访问；关闭后除 /admin 页面与已登录用户外，必须使用带有效令牌的链接才能访问。
                 </div>
+                <q-input
+                  v-model="accessForm.site_url"
+                  label="网站地址"
+                  outlined
+                  dense
+                  clearable
+                  placeholder="例如 example.com（需带 http 或 https）"
+                  hint="App 内置前端资源时无法自动识别真实站点，请手动填写，以 http 或 https 开头；留空则使用当前浏览器地址"
+                />
                 <div>
                   <q-btn
                     color="primary"
@@ -2529,7 +2538,7 @@ interface AccessTokenItem {
   created_at: string;
 }
 
-const accessForm = reactive({ allow_direct: true });
+const accessForm = reactive({ allow_direct: true, site_url: "" });
 const accessTokens = ref<AccessTokenItem[]>([]);
 const accessSaving = ref(false);
 const accessTokenDlg = ref(false);
@@ -2556,6 +2565,7 @@ async function loadAccess() {
   try {
     const d = await api("/api/access/settings");
     accessForm.allow_direct = d.allow_direct !== false;
+    accessForm.site_url = d.site_url ?? "";
     accessTokens.value = Array.isArray(d.tokens) ? d.tokens : [];
   } catch (e) {
     $q.notify({ message: describeError(e), color: "negative" });
@@ -2567,7 +2577,10 @@ async function saveAccess() {
   try {
     await api("/api/access/save", {
       method: "POST",
-      body: { allow_direct: accessForm.allow_direct }
+      body: {
+        allow_direct: accessForm.allow_direct,
+        site_url: accessForm.site_url.trim()
+      }
     });
     $q.notify({ message: "已保存，立即生效", color: "positive" });
   } catch (e) {
@@ -2583,9 +2596,11 @@ function openAccessTokenDlg() {
   accessTokenDlg.value = true;
 }
 
-// 带令牌的访问链接（hash 路由：https://站点/#/?access=令牌）
+// 带令牌的访问链接：优先用配置的网站地址（App 内无法识别站点），留空则用当前地址
 function accessUrl(token: string): string {
-  return `${location.origin}${location.pathname}#/?access=${encodeURIComponent(token)}`;
+  const site = accessForm.site_url.trim().replace(/\/+$/, "");
+  const base = site ? `${site}/` : `${location.origin}${location.pathname}`;
+  return `${base}#/?access=${encodeURIComponent(token)}`;
 }
 
 // 生成访问链接二维码（纯前端渲染为 SVG，不依赖第三方服务与异步库）

@@ -20,6 +20,9 @@ import (
 // CfgAccessAllowDirect 是否允许直接访问："1" 允许（默认）/ "0" 需令牌
 const CfgAccessAllowDirect = "access_allow_direct"
 
+// CfgAccessSiteURL 访问链接使用的网站地址（App 内无法识别真实站点时手动指定）
+const CfgAccessSiteURL = "access_site_url"
+
 // AccessTokenItem 令牌列表项（管理页展示）
 type AccessTokenItem struct {
 	ID        int64      `json:"id,string"`
@@ -32,12 +35,14 @@ type GetAccessSettingsInput struct {
 }
 type GetAccessSettingsOutput struct {
 	AllowDirect bool              `json:"allow_direct"`
+	SiteURL     string            `json:"site_url"`
 	Tokens      []AccessTokenItem `json:"tokens"`
 }
 
 // GetAccessSettings 读取访问控制配置与令牌列表
 func GetAccessSettings(_ GetAccessSettingsInput) (o GetAccessSettingsOutput, err error) {
 	o.AllowDirect = getCfg(CfgAccessAllowDirect, "1") == "1"
+	o.SiteURL = getCfg(CfgAccessSiteURL, "")
 	o.Tokens = []AccessTokenItem{}
 	if db.DB == nil {
 		return o, nil
@@ -59,12 +64,13 @@ func GetAccessSettings(_ GetAccessSettingsInput) (o GetAccessSettingsOutput, err
 }
 
 type SaveAccessSettingsInput struct {
-	AllowDirect bool `json:"allow_direct"`
+	AllowDirect bool   `json:"allow_direct"`
+	SiteURL     string `json:"site_url"`
 }
 type SaveAccessSettingsOutput struct {
 }
 
-// SaveAccessSettings 保存「是否允许直接访问」，立即生效
+// SaveAccessSettings 保存「是否允许直接访问」与网站地址，立即生效
 func SaveAccessSettings(i SaveAccessSettingsInput) (o SaveAccessSettingsOutput, err error) {
 	if db.DB == nil {
 		return o, errors.New("数据库未连接")
@@ -74,6 +80,15 @@ func SaveAccessSettings(i SaveAccessSettingsInput) (o SaveAccessSettingsOutput, 
 		v = "1"
 	}
 	if err = setCfg(CfgAccessAllowDirect, v, "允许直接访问（关闭后需带访问令牌）"); err != nil {
+		return o, err
+	}
+
+	// 网站地址：留空表示用当前页面地址，填了必须带协议（App 内无法识别站点时手动指定）
+	i.SiteURL = strings.TrimRight(strings.TrimSpace(i.SiteURL), "/")
+	if i.SiteURL != "" && !strings.HasPrefix(i.SiteURL, "http://") && !strings.HasPrefix(i.SiteURL, "https://") {
+		return o, errors.New("网站地址需以 http:// 或 https:// 开头")
+	}
+	if err = setCfg(CfgAccessSiteURL, i.SiteURL, "访问链接使用的网站地址"); err != nil {
 		return o, err
 	}
 	return o, nil

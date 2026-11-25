@@ -22,7 +22,7 @@ func (h *ApiAccessHandler) Settings(c *gin.Context) {
 	c.JSON(200, out)
 }
 
-// Save 保存「是否允许直接访问」（body: {"allow_direct":true}）
+// Save 保存「是否允许直接访问」与网站地址（body: {"allow_direct":true,"site_url":"https://example.com"}）
 func (h *ApiAccessHandler) Save(c *gin.Context) {
 	var req service.SaveAccessSettingsInput
 	if err := c.ShouldBindJSON(&req); err != nil {
