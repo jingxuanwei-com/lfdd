@@ -905,6 +905,17 @@
                 <div class="text-subtitle1">访问令牌</div>
                 <q-space />
                 <q-btn
+                  v-if="expiredAccessCount > 0"
+                  flat
+                  dense
+                  color="negative"
+                  icon="cleaning_services"
+                  :label="`清理失效 (${expiredAccessCount})`"
+                  :loading="accessClearing"
+                  class="q-mr-xs"
+                  @click="clearExpiredTokens"
+                />
+                <q-btn
                   color="primary"
                   icon="add"
                   label="添加令牌"
@@ -923,12 +934,19 @@
                     <q-item-section>
                       <q-item-label
                         class="ellipsis"
+                        :class="{ 'text-grey-5': isAccessExpired(t) }"
                         style="font-family: monospace"
                       >
                         {{ t.token }}
                       </q-item-label>
                       <q-item-label caption>
                         有效期：{{ accessExpireText(t) }}
+                        <q-badge
+                          v-if="isAccessExpired(t)"
+                          color="grey-5"
+                          class="q-ml-xs"
+                          label="已失效"
+                        />
                       </q-item-label>
                     </q-item-section>
                     <q-item-section side>
@@ -2754,8 +2772,36 @@ function accessExpireText(t: AccessTokenItem) {
   const d = new Date(t.expires_at);
   if (Number.isNaN(d.getTime())) return "永久有效";
   const pad = (n: number) => String(n).padStart(2, "0");
-  const text = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  return d.getTime() < Date.now() ? `${text}（已过期）` : text;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 令牌是否已过期（无有效期视为永久有效）
+function isAccessExpired(t: AccessTokenItem) {
+  if (!t.expires_at) return false;
+  const d = new Date(t.expires_at);
+  return !Number.isNaN(d.getTime()) && d.getTime() <= Date.now();
+}
+
+const expiredAccessCount = computed(
+  () => accessTokens.value.filter(isAccessExpired).length
+);
+const accessClearing = ref(false);
+
+// 一键清理所有已过期令牌
+async function clearExpiredTokens() {
+  accessClearing.value = true;
+  try {
+    const d = await api("/api/access/token/clear-expired", { method: "POST" });
+    $q.notify({
+      message: `已清理 ${d.deleted ?? 0} 个失效令牌`,
+      color: "positive"
+    });
+    await loadAccess();
+  } catch (e) {
+    $q.notify({ message: describeError(e), color: "negative" });
+  } finally {
+    accessClearing.value = false;
+  }
 }
 
 function removeAccessToken(t: AccessTokenItem) {

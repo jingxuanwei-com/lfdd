@@ -16,5 +16,6 @@ func apiAccessRouter() {
 	group.POST("/save", middleware.RoleGuard(), apiAccessHandler.Save)
 	group.POST("/token/create", middleware.RoleGuard(), apiAccessHandler.TokenCreate)
 	group.POST("/token/delete", middleware.RoleGuard(), apiAccessHandler.TokenDelete)
+	group.POST("/token/clear-expired", middleware.RoleGuard(), apiAccessHandler.TokenClearExpired)
 	group.POST("/verify", apiAccessHandler.Verify)
 }

@@ -153,6 +153,25 @@ func DeleteAccessToken(i DeleteAccessTokenInput) (o DeleteAccessTokenOutput, err
 	return o, nil
 }
 
+type ClearExpiredAccessTokensInput struct {
+}
+type ClearExpiredAccessTokensOutput struct {
+	Deleted int64 `json:"deleted"`
+}
+
+// ClearExpiredAccessTokens 批量删除已过期令牌，返回删除数量
+func ClearExpiredAccessTokens(_ ClearExpiredAccessTokensInput) (o ClearExpiredAccessTokensOutput, err error) {
+	if db.DB == nil {
+		return o, errors.New("数据库未连接")
+	}
+	res := db.DB.Where("expires_at IS NOT NULL AND expires_at <= ?", time.Now()).Delete(&model.AccessToken{})
+	if res.Error != nil {
+		return o, res.Error
+	}
+	o.Deleted = res.RowsAffected
+	return o, nil
+}
+
 type VerifyAccessTokenInput struct {
 	Token string `json:"token"`
 	// Authorization 原始请求头：携带有效登录会话的用户免令牌访问（游客身份不算）

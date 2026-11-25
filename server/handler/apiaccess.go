@@ -87,6 +87,19 @@ func (h *ApiAccessHandler) TokenDelete(c *gin.Context) {
 	})
 }
 
+// TokenClearExpired 批量删除已过期令牌，返回删除数量
+func (h *ApiAccessHandler) TokenClearExpired(c *gin.Context) {
+	out, err := service.ClearExpiredAccessTokens(service.ClearExpiredAccessTokensInput{})
+	if err != nil {
+		c.JSON(400, gin.H{
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, out)
+}
+
 // Verify 校验访问令牌（公开接口，前端路由守卫调用；body: {"token":"..."}）。
 // 携带有效登录会话（Authorization 头）的用户免令牌放行；游客身份不算登录。
 func (h *ApiAccessHandler) Verify(c *gin.Context) {
