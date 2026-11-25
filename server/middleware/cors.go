@@ -38,6 +38,8 @@ func Cors() gin.HandlerFunc {
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Access-Token")
+		// 允许前端读取访问受限标记（App 跨域请求时默认读不到自定义响应头）
+		c.Header("Access-Control-Expose-Headers", "X-Access-Denied")
 		c.Header("Access-Control-Max-Age", "86400")
 
 		// 预检请求直接返回 204，不进入后续鉴权/业务中间件

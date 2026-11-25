@@ -67,6 +67,8 @@ func AccessGuard() gin.HandlerFunc {
 		}
 
 		c.Abort()
+		// 标记来源，前端据此识别「访问受限」并跳转伪装页，无需单独接口探测
+		c.Header("X-Access-Denied", "1")
 		c.Data(http.StatusNotFound, "text/plain; charset=utf-8", []byte("404 page not found"))
 	}
 }

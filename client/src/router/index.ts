@@ -6,7 +6,18 @@ import {
   createWebHashHistory,
   createWebHistory
 } from "vue-router";
-import { resolveAccess } from "@/utils/access";
+import { resolveAccess, setAccessDeniedHandler } from "@/utils/access";
+
+// App（Capacitor 原生）内置前端资源、不对外暴露，未授权时直接回 /admin 登录；网页端跳伪装页
+function isNativeApp(): boolean {
+  return Boolean(
+    (
+      window as unknown as {
+        Capacitor?: { isNativePlatform?: () => boolean };
+      }
+    ).Capacitor?.isNativePlatform?.()
+  );
+}
 
 /*
  * If not building with SSR mode, you can
@@ -39,6 +50,13 @@ export default defineRouter((/* { store, ssrContext } */) => {
     handleHotUpdate(Router);
   }
 
+  // 任意受控接口返回「访问受限」时自动跳转（不必每次路由跳转都请求校验接口）
+  setAccessDeniedHandler(() => {
+    const path = Router.currentRoute.value.path;
+    if (path === "/admin" || path === "/denied") return;
+    void Router.push(isNativeApp() ? "/admin" : "/denied");
+  });
+
   // 访问限制守卫：开启后除 /admin（配置入口）与 /denied（提示页）外，
   // 其余页面都必须持有效访问令牌（URL 参数 ?access=xxx 或本地已保存）。
   // App（Capacitor 原生）内置前端资源、不对外暴露，未授权时直接回 /admin 登录；
@@ -53,14 +71,7 @@ export default defineRouter((/* { store, ssrContext } */) => {
     const allowed = await resolveAccess(to.query.access ?? searchToken);
     if (allowed) return true;
 
-    const isNativeApp = Boolean(
-      (
-        window as unknown as {
-          Capacitor?: { isNativePlatform?: () => boolean };
-        }
-      ).Capacitor?.isNativePlatform?.()
-    );
-    return { path: isNativeApp ? "/admin" : "/denied" };
+    return { path: isNativeApp() ? "/admin" : "/denied" };
   });
 
   return Router;

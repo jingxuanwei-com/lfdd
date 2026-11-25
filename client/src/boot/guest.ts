@@ -1,6 +1,11 @@
 import { defineBoot } from "#q-app";
 import { apiPath } from "@/utils/api";
-import { captureAccessTokenFromUrl, getAccessToken } from "@/utils/access";
+import {
+  captureAccessTokenFromUrl,
+  getAccessToken,
+  markAccessAllowed,
+  markAccessDenied
+} from "@/utils/access";
 import {
   activeToken,
   ensureGuestIdentity,
@@ -23,6 +28,8 @@ export default defineBoot(async () => {
   if (!hasToken()) {
     try {
       await ensureGuestIdentity();
+      // 受控接口能成功返回，说明访问限制已放行，本会话无需再单独校验
+      markAccessAllowed();
     } catch {
       // 后端不可用时忽略，页面会给出加载失败提示
     }
@@ -62,6 +69,9 @@ function patchFetch() {
 
     let res = await send();
 
+    // 访问受限：服务端返回伪装 404 并带标记，标记为拒绝并交给路由跳转
+    if (isAccessDenied(res)) markAccessDenied();
+
     // 游客身份失效（已注销/服务端无此身份）：自动补签一次后重试
     if (res.status === 401 && !hasToken()) {
       const data = await res
@@ -73,6 +83,7 @@ function patchFetch() {
         try {
           await ensureGuestIdentity();
           res = await send();
+          if (isAccessDenied(res)) markAccessDenied();
         } catch {
           // 补签失败：保留原 401 响应，由页面提示
         }
@@ -80,4 +91,9 @@ function patchFetch() {
     }
     return res;
   };
+}
+
+// 服务端访问限制的伪装 404：带 X-Access-Denied 标记（CORS 已放开该响应头）
+function isAccessDenied(res: Response): boolean {
+  return res.status === 404 && res.headers.get("X-Access-Denied") === "1";
 }
