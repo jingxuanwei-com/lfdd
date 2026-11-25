@@ -230,6 +230,7 @@ func (h *ApiGoodsHandler) Match(c *gin.Context) {
 }
 
 // Image 图片直出：GET /api/upload/{hash}，校验哈希文件名后按内容类型返回文件
+// 文件按内容哈希命名、内容永不改变，故可长期强缓存（图片/视频均适用）
 func (h *ApiGoodsHandler) Image(c *gin.Context) {
 	out, err := service.GetUploadImage(service.GetUploadImageInput{Name: c.Param("name")})
 	if err != nil {
@@ -239,5 +240,6 @@ func (h *ApiGoodsHandler) Image(c *gin.Context) {
 		return
 	}
 
+	c.Header("Cache-Control", "public, max-age=31536000, immutable")
 	c.File(out.Path)
 }

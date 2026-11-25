@@ -7,8 +7,8 @@ type Goods struct {
 	// 自增主键
 	ID int64 `json:"id,string" gorm:"primaryKey;autoIncrement"`
 
-	// 所属菜单 ID（menu.id），普通索引：同一菜单下可有多个商品
-	MenuID int64 `json:"menu_id,string" gorm:"not null;index"`
+	// 所属菜单 ID（menu.id）；与 status、sort 组成复合索引，覆盖点单页按分类查上架商品
+	MenuID int64 `json:"menu_id,string" gorm:"not null;index:idx_goods_menu_status_sort,priority:1"`
 
 	// 商品名称
 	Name string `json:"name" gorm:"size:64;not null"`
@@ -35,10 +35,10 @@ type Goods struct {
 	Media string `json:"media" gorm:"type:text"`
 
 	// 同级排序，数值越小越靠前；前端拖拽后由业务层整组重写
-	Sort int `json:"sort" gorm:"not null;default:0"`
+	Sort int `json:"sort" gorm:"not null;default:0;index:idx_goods_menu_status_sort,priority:3;index:idx_goods_status_sort,priority:2"`
 
 	// 上架状态：1 上架、0 下架（默认 1）
-	Status int8 `json:"status" gorm:"not null;default:1"`
+	Status int8 `json:"status" gorm:"not null;default:1;index:idx_goods_menu_status_sort,priority:2;index:idx_goods_status_sort,priority:1"`
 
 	// 创建/更新时间，由 gorm 自动维护
 	CreatedAt time.Time `json:"created_at"`
