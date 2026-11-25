@@ -49,7 +49,7 @@
             dense
             clearable
             class="search-input"
-            placeholder="搜索商品：名称/别名/拼音，如 nmh"
+            placeholder="搜索：名称/别名/拼音"
             :loading="searchLoading"
           >
             <template #prepend>
@@ -64,7 +64,7 @@
               outlined
               dense
               class="col"
-              placeholder="AI 点单：如「两杯柠檬水和一个冰淇淋」"
+              placeholder="AI 添加：如「两杯柠檬水和一个冰淇淋」"
               :disable="aiLoading"
               @keyup.enter="aiMatch"
             >
@@ -74,7 +74,7 @@
             </q-input>
             <q-btn
               color="primary"
-              label="点单"
+              label="添加"
               unelevated
               :loading="aiLoading"
               @click="aiMatch"
@@ -140,7 +140,7 @@
                   <span
                     v-else-if="showCost"
                     class="goods-cost text-caption"
-                    >进 ¥{{ fmtPrice(g.cost ?? 0) }}</span
+                    >{{ fmtPrice(g.cost ?? 0) }}</span
                   >
                 </div>
               </div>
@@ -150,7 +150,7 @@
               <div class="goods-foot row items-center justify-between q-mt-xs">
                 <div class="goods-price-row row items-baseline q-gutter-sm">
                   <div class="text-negative text-weight-bold"
-                    >¥{{ fmtPrice(g.price) }}</div
+                    >{{ fmtPrice(g.price) }}</div
                   >
                   <span class="text-caption text-grey-6">
                     {{
@@ -231,7 +231,7 @@
         <div class="col q-ml-sm">
           <div class="text-caption" style="line-height: 1">合计</div>
           <div class="text-weight-bold" style="line-height: 1.2"
-            >¥{{ fmtPrice(cartTotal) }}</div
+            >{{ fmtPrice(cartTotal) }}</div
           >
         </div>
         <q-space />

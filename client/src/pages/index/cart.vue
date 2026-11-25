@@ -22,7 +22,7 @@
         outlined
         dense
         class="col"
-        placeholder="AI 点单：如「两杯柠檬水和一个冰淇淋」"
+        placeholder="AI 添加：如「两杯柠檬水和一个冰淇淋」"
         :disable="aiLoading"
         @keyup.enter="aiMatch"
       >
@@ -32,7 +32,7 @@
       </q-input>
       <q-btn
         color="primary"
-        label="点单"
+        label="添加"
         unelevated
         :loading="aiLoading"
         @click="aiMatch"
@@ -66,7 +66,7 @@
             line.spec
           }}</div>
           <div class="text-negative text-weight-bold q-mt-xs">
-            ¥{{ fmtPrice(line.price) }}
+            {{ fmtPrice(line.price) }}
             <span class="text-caption text-grey-6 text-weight-regular">
               / 件</span
             >
@@ -113,7 +113,7 @@
             />
           </div>
           <div class="text-caption text-grey-6"
-            >小计 ¥{{ fmtPrice(line.price * line.qty) }}</div
+            >小计 {{ fmtPrice(line.price * line.qty) }}</div
           >
         </div>
       </div>
@@ -129,7 +129,7 @@
           class="text-h6 text-negative text-weight-bold"
           style="line-height: 1.3"
         >
-          ¥{{ fmtPrice(cartTotal) }}
+          {{ fmtPrice(cartTotal) }}
         </div>
       </div>
       <q-btn
