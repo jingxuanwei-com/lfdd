@@ -11,6 +11,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// sessionTTL 会话有效期：60 天；每次轮换 token 时顺延
+const sessionTTL = 60 * 24 * time.Hour
+
 // ------------------------ CreateSession 创建会话（生成 Token） ------------------------
 type CreateSessionInput struct {
 	UserID int64  `json:"user_id,string"`
@@ -32,8 +35,8 @@ func CreateSession(i CreateSessionInput) (o CreateSessionOutput, err error) {
 	// 2. 转换为 16 进制字符串作为 Token
 	tokenStr := hex.EncodeToString(bytes)
 
-	// 3. 设置过期时间为 7 天
-	expireAt := time.Now().Add(7 * 24 * time.Hour)
+	// 3. 设置过期时间为 60 天
+	expireAt := time.Now().Add(sessionTTL)
 
 	// 4. 保存会话到数据库
 	if err = db.DB.Create(&model.Session{
@@ -78,12 +81,17 @@ func RefreshSession(i RefreshSessionInput) (o RefreshSessionOutput, err error) {
 	}
 	newToken := hex.EncodeToString(bytes)
 
-	// 3. 替换旧 Token 并滑动续期 7 天（Token 是主键，直接 UPDATE 主键完成换发）
-	if err = db.DB.Model(&model.Session{}).Where("token = ?", i.Token).Updates(map[string]interface{}{
+	// 3. 替换旧 Token 并滑动续期 60 天（Token 是主键，直接 UPDATE 主键完成换发）。
+	// 旧 Token 立即失效；并发轮换时只有一次能命中，其余返回失效错误
+	res := db.DB.Model(&model.Session{}).Where("token = ?", i.Token).Updates(map[string]interface{}{
 		"token":      newToken,
-		"expires_at": time.Now().Add(7 * 24 * time.Hour),
-	}).Error; err != nil {
-		return o, err
+		"expires_at": time.Now().Add(sessionTTL),
+	})
+	if res.Error != nil {
+		return o, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return o, errors.New("token 已失效，请重新登录")
 	}
 
 	o.Token = newToken

@@ -1433,10 +1433,12 @@ import {
 } from "@/utils/printerStore";
 
 import {
+  authToken,
   clearGuestIdentity,
+  getToken,
   markLoggedIn,
   markLoggedOut,
-  TOKEN_KEY
+  setAuthToken
 } from "@/utils/guest";
 import LinkScanDialog from "@/components/LinkScanDialog.vue";
 import { renderSVG } from "uqr";
@@ -1476,15 +1478,15 @@ function describeError(e: unknown) {
 }
 
 // ================= 认证 =================
-const token = ref(localStorage.getItem(TOKEN_KEY) ?? "");
+// 登录 token 统一放在 utils/guest 的响应式 ref 中，自动轮换后本页即时生效
+const token = authToken;
 const account = ref("");
 const password = ref("");
 const authBusy = ref(false);
 const authError = ref("");
 
 function setToken(t: string) {
-  token.value = t;
-  localStorage.setItem(TOKEN_KEY, t);
+  setAuthToken(t);
   // 登录后忽略并清掉游客身份（后端登录时已作废该身份）
   clearGuestIdentity();
   markLoggedIn();
@@ -1496,18 +1498,19 @@ async function api(
   path: string,
   opts: { method?: string; body?: unknown } = {}
 ): Promise<any> {
+  // 每次请求读取当前 token（可能已被自动轮换）
+  const bearer = getToken();
   const res = await fetch(path, {
     method: opts.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      ...(token.value ? { Authorization: `Bearer ${token.value}` } : {})
+      ...(bearer ? { Authorization: `Bearer ${bearer}` } : {})
     },
     ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {})
   });
 
   if (res.status === 401) {
-    token.value = "";
-    localStorage.removeItem(TOKEN_KEY);
+    setAuthToken("");
     markLoggedOut();
     throw new Error("登录已过期，请重新登录");
   }
@@ -1545,8 +1548,7 @@ async function logout() {
   } catch {
     // token 已失效也照常退出
   }
-  token.value = "";
-  localStorage.removeItem(TOKEN_KEY);
+  setAuthToken("");
   markLoggedOut();
   menus.value = [];
   goodsList.value = [];
@@ -1800,14 +1802,13 @@ async function uploadGoodsMedia(files: unknown) {
       fd.append("file", f);
       const res = await fetch("/api/goods/upload", {
         method: "POST",
-        ...(token.value
-          ? { headers: { Authorization: `Bearer ${token.value}` } }
+        ...(getToken()
+          ? { headers: { Authorization: `Bearer ${getToken()}` } }
           : {}),
         body: fd
       });
       if (res.status === 401) {
-        token.value = "";
-        localStorage.removeItem(TOKEN_KEY);
+        setAuthToken("");
         markLoggedOut();
         throw new Error("登录已过期，请重新登录");
       }

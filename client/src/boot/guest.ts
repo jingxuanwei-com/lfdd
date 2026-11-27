@@ -10,6 +10,7 @@ import {
   activeToken,
   ensureGuestIdentity,
   hasToken,
+  rotateSessionToken,
   setGuestToken
 } from "@/utils/guest";
 
@@ -24,6 +25,10 @@ export default defineBoot(async () => {
 
   // 链接首次进入时先把访问令牌落盘，后续游客申请与接口请求才能带上它
   captureAccessTokenFromUrl();
+
+  // 登录态自动轮换 token：启动时检查（距上次轮换不足 24 小时则跳过）
+  await rotateSessionToken().catch(() => {});
+  startRotateTimer();
 
   if (!hasToken()) {
     try {
@@ -96,4 +101,16 @@ function patchFetch() {
 // 服务端访问限制的伪装 404：带 X-Access-Denied 标记（CORS 已放开该响应头）
 function isAccessDenied(res: Response): boolean {
   return res.status === 404 && res.headers.get("X-Access-Denied") === "1";
+}
+
+// 长时间驻留的 App：每小时检查一次是否到轮换时间，回到前台时也检查
+const ROTATE_TIMER = "__lfddRotateTimer";
+function startRotateTimer() {
+  const w = window as unknown as Record<string, unknown>;
+  if (w[ROTATE_TIMER]) return;
+  w[ROTATE_TIMER] = true;
+  setInterval(() => void rotateSessionToken(), 60 * 60 * 1000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void rotateSessionToken();
+  });
 }
