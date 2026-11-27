@@ -971,7 +971,7 @@
                           flat
                           dense
                           icon="print"
-                          @click="printAccessQr(t.token)"
+                          @click="printAccessQr(t)"
                         >
                           <q-tooltip>用小票机打印二维码</q-tooltip>
                         </q-btn>
@@ -2670,7 +2670,7 @@ const accessQrDlg = ref(false);
 const accessQrUrl = ref("");
 const accessQrImage = ref("");
 const accessPrintDlg = ref(false);
-const accessPrintToken = ref("");
+const accessPrintToken = ref<AccessTokenItem | null>(null);
 const accessPrinting = ref(false);
 
 const accessExpireOptions = [
@@ -2804,7 +2804,7 @@ async function saveImageInApp(dataUrl: string) {
 }
 
 // 用小票机打印二维码：选择设备（已保存的小票机，仅蓝牙）
-function printAccessQr(token: string) {
+function printAccessQr(t: AccessTokenItem) {
   const list = printers.value.filter(
     p => p.transport === "bt" && p.kind === "receipt"
   );
@@ -2812,7 +2812,7 @@ function printAccessQr(token: string) {
     $q.notify({ message: "请先在「打印机」中添加小票机", color: "warning" });
     return;
   }
-  accessPrintToken.value = token;
+  accessPrintToken.value = t;
   if (list.length === 1) {
     void printAccessQrTo(list[0]!);
     return;
@@ -2824,11 +2824,13 @@ function printAccessQr(token: string) {
 async function printAccessQrTo(p: SavedPrinter) {
   accessPrinting.value = true;
   try {
-    const payload = buildQrPayload(
-      accessUrl(accessPrintToken.value),
-      "巴拉巴拉",
-      p.encoding
-    );
+    const t = accessPrintToken.value;
+    if (!t) return;
+    // 二维码下方标注有效期；永久令牌标「长期有效」
+    const caption = t.expires_at
+      ? `有效期至 ${accessExpireText(t)}`
+      : "长期有效";
+    const payload = buildQrPayload(accessUrl(t.token), caption, p.encoding);
     const name =
       p.conn === "spp"
         ? await sppPrint({ address: p.id, name: p.name }, payload)
