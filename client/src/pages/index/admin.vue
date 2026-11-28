@@ -1266,51 +1266,40 @@
               dense
               hint="-1 = 不限库存，0 = 售罄"
             />
-            <!-- 媒体：上传（哈希存储）与第三方直链；三个控件固定同一行，窄屏按钮只留图标 -->
+            <!-- 媒体：上传 / 拍照 / 添加链接 三个同色（主色描边）等宽按钮，同一行不折行 -->
             <div class="media-actions">
-              <q-file
-                ref="goodsFileRef"
-                v-model="goodsMediaFiles"
-                outlined
+              <q-btn
                 dense
-                multiple
-                class="media-upload"
-                label="上传图片/视频（压缩为 WebP ≤1MB，视频原样保存）"
-                accept="image/*,video/*"
+                outline
+                color="primary"
+                icon="upload"
+                label="上传"
+                no-caps
+                class="media-link-btn"
                 :loading="imgUploading"
-                @update:model-value="uploadGoodsMedia"
-              >
-                <template #prepend>
-                  <q-icon
-                    name="upload"
-                    class="cursor-pointer"
-                    @click.stop.prevent="openGoodsFilePicker"
-                  />
-                </template>
-              </q-file>
-              <div class="media-actions-btns">
-                <q-btn
-                  dense
-                  outline
-                  color="primary"
-                  icon="photo_camera"
-                  label="拍照"
-                  no-caps
-                  class="media-link-btn"
-                  :loading="imgUploading"
-                  @click="captureMedia"
-                />
-                <q-btn
-                  dense
-                  outline
-                  color="primary"
-                  icon="link"
-                  label="添加链接"
-                  no-caps
-                  class="media-link-btn"
-                  @click="promptMediaUrl"
-                />
-              </div>
+                @click="openUploadPicker"
+              />
+              <q-btn
+                dense
+                outline
+                color="primary"
+                icon="photo_camera"
+                label="拍照"
+                no-caps
+                class="media-link-btn"
+                :loading="imgUploading"
+                @click="captureMedia"
+              />
+              <q-btn
+                dense
+                outline
+                color="primary"
+                icon="link"
+                label="添加链接"
+                no-caps
+                class="media-link-btn"
+                @click="promptMediaUrl"
+              />
             </div>
             <div
               v-if="goodsForm.media.length"
@@ -1684,13 +1673,23 @@ const goodsForm = reactive({
 });
 
 // 媒体上传：选择文件即传给后端（内容哈希命名），成功后追加到 goodsForm.media
-const goodsMediaFiles = ref<File[] | null>(null);
-const goodsFileRef = ref<{ pickFiles: () => void } | null>(null);
 const imgUploading = ref(false);
 
-// 点击上传图标时主动唤起文件选择（App 内点击 label 图标不一定会触发）
-function openGoodsFilePicker() {
-  goodsFileRef.value?.pickFiles();
+// 上传按钮：唤起文件选择（图片/视频多选），选完按流程压缩上传
+function openUploadPicker() {
+  if (imgUploading.value) return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,video/*";
+  input.multiple = true;
+  input.style.display = "none";
+  input.addEventListener("change", () => {
+    const files = input.files ? Array.from(input.files) : [];
+    input.remove();
+    if (files.length) uploadGoodsMedia(files);
+  });
+  document.body.appendChild(input);
+  input.click();
 }
 
 // image 字段只存哈希，展示时拼成 /api/upload/{hash}（兼容旧数据里的完整 URL/路径）
@@ -1897,7 +1896,6 @@ async function uploadGoodsMedia(files: unknown) {
     $q.notify({ message: describeError(e), color: "negative" });
   } finally {
     imgUploading.value = false;
-    goodsMediaFiles.value = null; // 清掉以便再次选同一文件也能触发
   }
 }
 
@@ -1991,7 +1989,6 @@ function openGoods(g?: AdminGoods) {
     goodsForm.statusOn = true;
     goodsForm.sort = 0;
   }
-  goodsMediaFiles.value = null;
   goodsDlg.value = true;
 }
 
@@ -3078,7 +3075,7 @@ onMounted(async () => {
   color: #5f6b7a;
 }
 
-/* 媒体操作区：上传框 + 拍照 + 添加链接 固定同一行，不折行 */
+/* 媒体操作区：上传 / 拍照 / 添加链接 三个同色（主色描边）等宽按钮，同一行不折行 */
 .media-actions {
   display: flex;
   align-items: center;
@@ -3086,38 +3083,19 @@ onMounted(async () => {
   flex-wrap: nowrap;
 }
 
-.media-actions .media-upload {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.media-actions-btns {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
-}
-
-/* 窄屏：按钮收成图标，保证三个控件仍在一行 */
-@media (max-width: 479px) {
-  .media-actions,
-  .media-actions-btns {
-    gap: 6px;
-  }
-
-  .media-actions-btns .q-btn {
-    min-width: 40px;
-    padding: 0 6px;
-  }
-
-  .media-actions-btns .q-btn .block {
-    display: none;
-  }
-}
-
-/* 添加第三方链接按钮：与左侧 dense 上传框同高（40px）、同圆角 */
+/* 三个媒体按钮：等宽、同高（40px）、同圆角 */
 .media-link-btn {
+  flex: 1 1 0;
+  min-width: 0;
   height: 40px;
   border-radius: 4px;
+}
+
+/* 窄屏：缩小间距，三个按钮保持一行 */
+@media (max-width: 479px) {
+  .media-actions {
+    gap: 6px;
+  }
 }
 
 .media-item {
