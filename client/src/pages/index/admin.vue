@@ -1204,7 +1204,7 @@
       </q-dialog>
 
       <!-- ============ 新建 / 编辑商品 ============ -->
-      <q-dialog v-model="goodsDlg">
+      <q-dialog :model-value="goodsDlg" @update:model-value="onGoodsDlgUpdate">
         <q-card style="width: 360px; max-width: 95vw">
           <q-card-section class="text-subtitle1">
             {{ goodsForm.id ? "编辑商品" : "新建商品" }}
@@ -1352,7 +1352,7 @@
           </q-card-section>
 
           <q-card-actions align="right">
-            <q-btn flat label="取消" v-close-popup />
+            <q-btn flat label="取消" @click="requestCloseGoods" />
             <q-btn
               color="primary"
               label="保存"
@@ -1658,6 +1658,7 @@ const goodsList = ref<AdminGoods[]>([]);
 const goodsLoading = ref(false);
 const goodsDlg = ref(false);
 const goodsSaving = ref(false);
+const goodsSnapshot = ref("");
 const goodsForm = reactive({
   id: "",
   menu_id: "",
@@ -1989,7 +1990,37 @@ function openGoods(g?: AdminGoods) {
     goodsForm.statusOn = true;
     goodsForm.sort = 0;
   }
+  goodsSnapshot.value = JSON.stringify(goodsForm);
   goodsDlg.value = true;
+}
+
+// 关闭商品弹窗前检查是否有未保存修改；有则弹确认，无则直接关闭
+function isGoodsDirty(): boolean {
+  return JSON.stringify(goodsForm) !== goodsSnapshot.value;
+}
+
+function requestCloseGoods() {
+  if (!isGoodsDirty()) {
+    goodsDlg.value = false;
+    return;
+  }
+  $q.dialog({
+    title: "未保存的修改",
+    message: "有未保存的修改，确定要放弃吗？",
+    cancel: true,
+    ok: "放弃修改"
+  }).onOk(() => {
+    goodsDlg.value = false;
+  });
+}
+
+// q-dialog 想通过遮罩/ESC/返回键关闭时，先走未保存检查
+function onGoodsDlgUpdate(val: boolean) {
+  if (val) {
+    goodsDlg.value = true;
+    return;
+  }
+  requestCloseGoods();
 }
 
 async function saveGoods() {
