@@ -1802,7 +1802,59 @@ function addMediaUrl(u: string) {
   goodsForm.media.push({ url: u, type });
 }
 
-// 批量上传：逐张/逐段传到后端，按返回哈希追加进媒体列表
+// 客户端图片压缩：等比缩到最长边 ≤1600，优先 WebP、不支持时回退 JPEG，
+// 压缩到几百 KB 再上传，避免手机流量下原图（几 MB~20MB）上传过慢。
+// 视频不压缩，原样上传（后端也原样保存）。
+const mediaMaxDim = 1600;
+const mediaTargetBytes = 600 * 1024;
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number
+): Promise<Blob | null> {
+  return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+}
+
+function isVideoFile(f: File): boolean {
+  return f.type.startsWith("video/") || /\.(mp4|m4v|mov|webm)$/i.test(f.name);
+}
+
+// 压缩图片；解析/编码失败（如 HEIC 等浏览器不解码的格式）抛错，由调用方回退原文件
+async function compressImageFile(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, mediaMaxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("无法创建画布");
+    ctx.drawImage(bitmap, 0, 0, w, h);
+
+    // WebP 优先（体积小且保留透明）；不支持时 toBlob 会回退成 PNG，改走 JPEG
+    const webp = await canvasToBlob(canvas, "image/webp", 0.82);
+    if (webp && webp.type === "image/webp") {
+      if (webp.size <= mediaTargetBytes) return webp;
+      for (const q of [0.7, 0.6, 0.5]) {
+        const b = await canvasToBlob(canvas, "image/webp", q);
+        if (b && b.size <= mediaTargetBytes) return b;
+      }
+      return webp;
+    }
+    for (const q of [0.82, 0.7, 0.6, 0.5]) {
+      const b = await canvasToBlob(canvas, "image/jpeg", q);
+      if (b && b.size <= mediaTargetBytes) return b;
+    }
+    return (await canvasToBlob(canvas, "image/jpeg", 0.5)) ?? file;
+  } finally {
+    bitmap.close();
+  }
+}
+
+// 批量上传：图片先客户端压缩，视频原样；逐张传到后端，按返回哈希追加进媒体列表
 async function uploadGoodsMedia(files: unknown) {
   const targets = (Array.isArray(files) ? files : files ? [files] : []).filter(
     (f): f is File => f instanceof File
@@ -1811,8 +1863,17 @@ async function uploadGoodsMedia(files: unknown) {
   imgUploading.value = true;
   try {
     for (const f of targets) {
+      // 图片先压缩到几百 KB；压缩失败（HEIC 等）退回原文件，交给后端报错
+      let blob: Blob = f;
+      if (!isVideoFile(f)) {
+        try {
+          blob = await compressImageFile(f);
+        } catch {
+          blob = f;
+        }
+      }
       const fd = new FormData();
-      fd.append("file", f);
+      fd.append("file", blob, f.name);
       const res = await fetch("/api/goods/upload", {
         method: "POST",
         ...(getToken()
@@ -1829,7 +1890,7 @@ async function uploadGoodsMedia(files: unknown) {
       if (!res.ok) throw new Error(data.message || `上传失败（${res.status}）`);
       goodsForm.media.push({
         hash: data.hash,
-        type: f.type.startsWith("video/") ? "video" : "image"
+        type: isVideoFile(f) ? "video" : "image"
       });
     }
   } catch (e) {
