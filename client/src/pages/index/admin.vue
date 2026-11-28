@@ -1266,7 +1266,7 @@
               dense
               hint="-1 = 不限库存，0 = 售罄"
             />
-            <!-- 媒体：上传（哈希存储）与第三方直链；小屏自动折行，按钮等宽便于点击 -->
+            <!-- 媒体：上传（哈希存储）与第三方直链；三个控件固定同一行，窄屏按钮只留图标 -->
             <div class="media-actions">
               <q-file
                 ref="goodsFileRef"
@@ -3017,31 +3017,39 @@ onMounted(async () => {
   color: #5f6b7a;
 }
 
-/* 媒体操作区：桌面端一行，小屏折行且按钮等宽 */
+/* 媒体操作区：上传框 + 拍照 + 添加链接 固定同一行，不折行 */
 .media-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .media-actions .media-upload {
-  flex: 1 1 240px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .media-actions-btns {
   display: flex;
+  flex: 0 0 auto;
   gap: 8px;
 }
 
-@media (max-width: 599px) {
+/* 窄屏：按钮收成图标，保证三个控件仍在一行 */
+@media (max-width: 479px) {
+  .media-actions,
   .media-actions-btns {
-    width: 100%;
+    gap: 6px;
   }
 
   .media-actions-btns .q-btn {
-    flex: 1 1 0;
+    min-width: 40px;
+    padding: 0 6px;
+  }
+
+  .media-actions-btns .q-btn .block {
+    display: none;
   }
 }
 

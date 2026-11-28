@@ -155,10 +155,15 @@ func listenDesc(addr string, tlsOn bool, cert, key string) string {
 // start 在指定地址启动服务
 func start(addr string) {
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      web.Engine,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		Addr:    addr,
+		Handler: web.Engine,
+		// 只限制请求头读取，防慢速攻击；请求体（上传图片/视频）不设时限，
+		// 否则手机网络下大文件读不完，c.FormFile 会失败并误报「请选择图片或视频文件」
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       0,
+		// 大文件直出（视频）同样不设写时限
+		WriteTimeout: 0,
+		IdleTimeout:  90 * time.Second,
 	}
 
 	tlsOn, cert, key := tlsFromConfig()
