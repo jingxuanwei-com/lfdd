@@ -1266,44 +1266,51 @@
               dense
               hint="-1 = 不限库存，0 = 售罄"
             />
-            <!-- 媒体：上传（哈希存储）与第三方直链（只存链接）并排，左右与上方字段对齐 -->
-            <div class="row items-center">
+            <!-- 媒体：上传（哈希存储）与第三方直链；小屏自动折行，按钮等宽便于点击 -->
+            <div class="media-actions">
               <q-file
+                ref="goodsFileRef"
                 v-model="goodsMediaFiles"
                 outlined
                 dense
                 multiple
-                class="col"
+                class="media-upload"
                 label="上传图片/视频（压缩为 WebP ≤1MB，视频原样保存）"
                 accept="image/*,video/*"
                 :loading="imgUploading"
                 @update:model-value="uploadGoodsMedia"
               >
                 <template #prepend>
-                  <q-icon name="upload" />
+                  <q-icon
+                    name="upload"
+                    class="cursor-pointer"
+                    @click.stop.prevent="openGoodsFilePicker"
+                  />
                 </template>
               </q-file>
-              <q-btn
-                dense
-                outline
-                color="primary"
-                icon="photo_camera"
-                label="拍照"
-                no-caps
-                class="media-link-btn q-ml-sm"
-                :loading="imgUploading"
-                @click="captureMedia"
-              />
-              <q-btn
-                dense
-                outline
-                color="primary"
-                icon="link"
-                label="添加第三方链接"
-                no-caps
-                class="media-link-btn q-ml-sm"
-                @click="promptMediaUrl"
-              />
+              <div class="media-actions-btns">
+                <q-btn
+                  dense
+                  outline
+                  color="primary"
+                  icon="photo_camera"
+                  label="拍照"
+                  no-caps
+                  class="media-link-btn"
+                  :loading="imgUploading"
+                  @click="captureMedia"
+                />
+                <q-btn
+                  dense
+                  outline
+                  color="primary"
+                  icon="link"
+                  label="添加链接"
+                  no-caps
+                  class="media-link-btn"
+                  @click="promptMediaUrl"
+                />
+              </div>
             </div>
             <div
               v-if="goodsForm.media.length"
@@ -1678,7 +1685,13 @@ const goodsForm = reactive({
 
 // 媒体上传：选择文件即传给后端（内容哈希命名），成功后追加到 goodsForm.media
 const goodsMediaFiles = ref<File[] | null>(null);
+const goodsFileRef = ref<{ pickFiles: () => void } | null>(null);
 const imgUploading = ref(false);
+
+// 点击上传图标时主动唤起文件选择（App 内点击 label 图标不一定会触发）
+function openGoodsFilePicker() {
+  goodsFileRef.value?.pickFiles();
+}
 
 // image 字段只存哈希，展示时拼成 /api/upload/{hash}（兼容旧数据里的完整 URL/路径）
 function imgSrc(v: string): string {
@@ -3002,6 +3015,34 @@ onMounted(async () => {
   justify-content: center;
   background: #eef1f5;
   color: #5f6b7a;
+}
+
+/* 媒体操作区：桌面端一行，小屏折行且按钮等宽 */
+.media-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.media-actions .media-upload {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.media-actions-btns {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 599px) {
+  .media-actions-btns {
+    width: 100%;
+  }
+
+  .media-actions-btns .q-btn {
+    flex: 1 1 0;
+  }
 }
 
 /* 添加第三方链接按钮：与左侧 dense 上传框同高（40px）、同圆角 */
